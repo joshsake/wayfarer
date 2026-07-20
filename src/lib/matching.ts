@@ -1,5 +1,5 @@
 import type { Destination, Preferences, Recommendation } from "./types";
-import { DESTINATIONS } from "./destinations";
+import { getDestinations } from "./destinations";
 
 // ---------------------------------------------------------------------------
 // The matching engine.
@@ -13,6 +13,22 @@ import { DESTINATIONS } from "./destinations";
 // The approach: each answer contributes weighted criteria. Every criterion
 // reads one destination score (0–100). The final match % is the weighted
 // average. Reasons are generated from the criteria that scored highest.
+//
+// MOVING TO A DATABASE — a deliberate design choice. The obvious migration
+// was to make `recommend()` async and have it query Supabase directly. That
+// would have quietly destroyed the property the paragraph above brags about:
+// a function that touches the network can't be tested with a plain table of
+// inputs and expected outputs.
+//
+// So the logic is split in two:
+//
+//   rank()      pure, synchronous, no I/O — the actual scoring algorithm
+//   recommend() async — fetches the catalog, then delegates to rank()
+//
+// This is the "keep I/O at the edges" principle. The interesting logic stays
+// trivially testable (hand `rank()` three fake destinations and assert the
+// order), while the messy part — network, credentials, failure — lives in one
+// thin wrapper. You get to test the algorithm without standing up a database.
 // ---------------------------------------------------------------------------
 
 interface Criterion {
@@ -130,14 +146,22 @@ function buildCriteria(prefs: Preferences): Criterion[] {
 }
 
 /**
- * Score every destination against the traveler's preferences and return the
- * top matches, best first, each with up to three human-readable reasons.
+ * Score a given set of destinations against the traveler's preferences and
+ * return the top matches, best first, each with up to three human-readable
+ * reasons.
+ *
+ * Pure and synchronous: same inputs always produce the same output, and it
+ * never touches the network. This is the function to unit-test.
  */
-export function recommend(prefs: Preferences, limit = 3): Recommendation[] {
+export function rank(
+  prefs: Preferences,
+  destinations: Destination[],
+  limit = 3,
+): Recommendation[] {
   const criteria = buildCriteria(prefs);
   const totalWeight = criteria.reduce((sum, c) => sum + c.weight, 0);
 
-  const scored = DESTINATIONS.map((destination) => {
+  const scored = destinations.map((destination) => {
     const contributions = criteria.map((c) => ({
       criterion: c,
       value: c.value(destination),
@@ -160,4 +184,18 @@ export function recommend(prefs: Preferences, limit = 3): Recommendation[] {
   });
 
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+/**
+ * Load the catalog from Supabase and rank it for this traveler.
+ *
+ * The only impure part of this module: everything it does is fetch data and
+ * hand it to `rank()`.
+ */
+export async function recommend(
+  prefs: Preferences,
+  limit = 3,
+): Promise<Recommendation[]> {
+  const destinations = await getDestinations();
+  return rank(prefs, destinations, limit);
 }

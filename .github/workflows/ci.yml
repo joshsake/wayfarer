@@ -19,6 +19,19 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # The app reads its Supabase connection details from the environment, and
+    # fails fast if they're missing — so CI has to supply them or the build
+    # won't even compile. These come from GitHub repository secrets
+    # (Settings → Secrets and variables → Actions), never from committed files.
+    #
+    # Both values are safe to hold as secrets even though they ship to the
+    # browser: the publishable key can only do what Row Level Security allows,
+    # which for us is read the public destinations catalog.
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+
     steps:
       - uses: actions/checkout@v4
 

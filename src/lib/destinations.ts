@@ -1,244 +1,94 @@
+import { cache } from "react";
+import { supabase } from "./supabase";
 import type { Destination } from "./types";
 
 // ---------------------------------------------------------------------------
-// Mock destination catalog.
+// The destination catalog — now backed by Supabase.
 //
-// LEARNING NOTE: Starting with hard-coded data is a deliberate choice, not a
-// shortcut. It lets us design and test the whole UI + matching logic before
-// touching a database. When we "work our way down" the stack, this file gets
-// replaced by a Supabase table with the exact same shape — and nothing in the
-// UI has to change. That separation is what people mean by "layered" apps.
+// LEARNING NOTE: This file used to export a hard-coded `DESTINATIONS` array.
+// The array is gone; the shape it produced is not. Everything above this layer
+// (matching engine, results page) still thinks in terms of `Destination`
+// objects, which is exactly the payoff of having defined that type first.
+//
+// Two ideas worth internalizing here:
+//
+// 1. THE MAPPING BOUNDARY. Postgres columns are snake_case and flat
+//    (`local_culture`). Our domain type is camelCase and nested
+//    (`scores.localCulture`). `toDestination` is the single place those two
+//    worlds meet. Keeping that translation in one function means a schema
+//    change touches one file instead of every component.
+//
+// 2. REQUEST MEMOIZATION. `cache()` from React makes repeated calls within a
+//    single request return the same result instead of re-querying. Call
+//    `getDestinations()` in three components and the database sees one query.
+//    The cache is per-request — it does not leak data between users.
 // ---------------------------------------------------------------------------
 
-export const DESTINATIONS: Destination[] = [
-  {
-    id: "kyoto",
-    name: "Kyoto",
-    country: "Japan",
-    tagline: "Temples, tea houses, and quiet lanes beyond the crowds",
-    emoji: "⛩️",
+/** The raw row shape as it comes back from Postgres. */
+interface DestinationRow {
+  id: string;
+  name: string;
+  country: string;
+  tagline: string;
+  emoji: string;
+  local_culture: number;
+  classic_sights: number;
+  hotel_quality: number;
+  food_scene: number;
+  experiences: number;
+  transit_quality: number;
+  family_friendly: number;
+  walkability: number;
+  daily_cost: number;
+  highlights: string[];
+}
+
+/** Translate one database row into the domain object the app works with. */
+function toDestination(row: DestinationRow): Destination {
+  return {
+    id: row.id,
+    name: row.name,
+    country: row.country,
+    tagline: row.tagline,
+    emoji: row.emoji,
     scores: {
-      localCulture: 92,
-      classicSights: 85,
-      hotelQuality: 88,
-      foodScene: 90,
-      experiences: 86,
-      transitQuality: 95,
-      familyFriendly: 78,
-      walkability: 85,
+      localCulture: row.local_culture,
+      classicSights: row.classic_sights,
+      hotelQuality: row.hotel_quality,
+      foodScene: row.food_scene,
+      experiences: row.experiences,
+      transitQuality: row.transit_quality,
+      familyFriendly: row.family_friendly,
+      walkability: row.walkability,
     },
-    dailyCost: 220,
-    highlights: [
-      "Stay in a ryokan with kaiseki dinner",
-      "Morning walk through Fushimi Inari before 8am",
-      "Nishiki Market food crawl with a local guide",
-    ],
-  },
-  {
-    id: "lisbon",
-    name: "Lisbon",
-    country: "Portugal",
-    tagline: "Hilltop neighborhoods, tiled facades, and long dinners",
-    emoji: "🚋",
-    scores: {
-      localCulture: 88,
-      classicSights: 72,
-      hotelQuality: 84,
-      foodScene: 87,
-      experiences: 80,
-      transitQuality: 74,
-      familyFriendly: 75,
-      walkability: 70,
-    },
-    dailyCost: 160,
-    highlights: [
-      "Fado night in Alfama, booked for 10pm",
-      "Day trip to Sintra before the tour buses",
-      "Seafood at a cervejaria, not a tourist grill",
-    ],
-  },
-  {
-    id: "mexico-city",
-    name: "Mexico City",
-    country: "Mexico",
-    tagline: "World-class food scene wrapped in real neighborhood life",
-    emoji: "🌮",
-    scores: {
-      localCulture: 94,
-      classicSights: 70,
-      hotelQuality: 82,
-      foodScene: 95,
-      experiences: 84,
-      transitQuality: 55,
-      familyFriendly: 65,
-      walkability: 68,
-    },
-    dailyCost: 140,
-    highlights: [
-      "Counter seats at a Roma Norte taquería omakase",
-      "Sunday in Coyoacán with the locals",
-      "Lucha libre night — chaotic, wonderful",
-    ],
-  },
-  {
-    id: "copenhagen",
-    name: "Copenhagen",
-    country: "Denmark",
-    tagline: "Design hotels, bike lanes, and effortless family days",
-    emoji: "🚲",
-    scores: {
-      localCulture: 80,
-      classicSights: 65,
-      hotelQuality: 90,
-      foodScene: 88,
-      experiences: 75,
-      transitQuality: 96,
-      familyFriendly: 92,
-      walkability: 92,
-    },
-    dailyCost: 280,
-    highlights: [
-      "Tivoli Gardens at dusk with kids",
-      "Smørrebrød lunch worth planning a day around",
-      "Harbor swim next to the opera house",
-    ],
-  },
-  {
-    id: "rome",
-    name: "Rome",
-    country: "Italy",
-    tagline: "The classics, done right, with carbonara in between",
-    emoji: "🏛️",
-    scores: {
-      localCulture: 75,
-      classicSights: 98,
-      hotelQuality: 85,
-      foodScene: 89,
-      experiences: 82,
-      transitQuality: 60,
-      familyFriendly: 80,
-      walkability: 78,
-    },
-    dailyCost: 210,
-    highlights: [
-      "Colosseum underground tour, first slot",
-      "Trastevere dinner away from the menus-with-photos",
-      "Borghese Gallery — timed entry, never crowded",
-    ],
-  },
-  {
-    id: "seoul",
-    name: "Seoul",
-    country: "South Korea",
-    tagline: "Neon markets, palace mornings, and immaculate subways",
-    emoji: "🏙️",
-    scores: {
-      localCulture: 89,
-      classicSights: 74,
-      hotelQuality: 87,
-      foodScene: 91,
-      experiences: 83,
-      transitQuality: 97,
-      familyFriendly: 76,
-      walkability: 80,
-    },
-    dailyCost: 180,
-    highlights: [
-      "Gwangjang Market bindaetteok at a shared table",
-      "Hanbok morning at Gyeongbokgung",
-      "Late-night Han River picnic with delivery chicken",
-    ],
-  },
-  {
-    id: "oaxaca",
-    name: "Oaxaca",
-    country: "Mexico",
-    tagline: "Mezcal, moles, and markets — culture with zero pretense",
-    emoji: "🎨",
-    scores: {
-      localCulture: 96,
-      classicSights: 55,
-      hotelQuality: 76,
-      foodScene: 93,
-      experiences: 85,
-      transitQuality: 40,
-      familyFriendly: 62,
-      walkability: 82,
-    },
-    dailyCost: 110,
-    highlights: [
-      "Cooking class that starts at the market",
-      "Mezcal palenque visit outside town",
-      "Hierve el Agua at sunrise",
-    ],
-  },
-  {
-    id: "london",
-    name: "London",
-    country: "United Kingdom",
-    tagline: "Museums, markets, and neighborhoods that feel like cities",
-    emoji: "🎡",
-    scores: {
-      localCulture: 82,
-      classicSights: 94,
-      hotelQuality: 89,
-      foodScene: 85,
-      experiences: 84,
-      transitQuality: 88,
-      familyFriendly: 88,
-      walkability: 84,
-    },
-    dailyCost: 300,
-    highlights: [
-      "Borough Market breakfast before the crowds",
-      "Natural History Museum's quiet side entrance",
-      "Theatre night — book the good seats",
-    ],
-  },
-  {
-    id: "hoi-an",
-    name: "Hội An",
-    country: "Vietnam",
-    tagline: "Lantern-lit old town, tailors, and beach afternoons",
-    emoji: "🏮",
-    scores: {
-      localCulture: 90,
-      classicSights: 62,
-      hotelQuality: 83,
-      foodScene: 88,
-      experiences: 87,
-      transitQuality: 30,
-      familyFriendly: 74,
-      walkability: 88,
-    },
-    dailyCost: 90,
-    highlights: [
-      "Sunrise bike ride through the rice paddies",
-      "Bánh mì tasting — settle the great debate",
-      "Basket boat ride the kids will talk about for years",
-    ],
-  },
-  {
-    id: "vienna",
-    name: "Vienna",
-    country: "Austria",
-    tagline: "Grand cafés, concert halls, and spotless trams",
-    emoji: "🎻",
-    scores: {
-      localCulture: 78,
-      classicSights: 90,
-      hotelQuality: 91,
-      foodScene: 82,
-      experiences: 76,
-      transitQuality: 98,
-      familyFriendly: 85,
-      walkability: 90,
-    },
-    dailyCost: 230,
-    highlights: [
-      "Standing tickets at the State Opera for €15",
-      "Café Sperl afternoon — bring a book",
-      "Schönbrunn gardens early, palace late",
-    ],
-  },
-];
+    dailyCost: row.daily_cost,
+    highlights: row.highlights,
+  };
+}
+
+/**
+ * Load the full destination catalog.
+ *
+ * Memoized per request — see the note above. Throws if the query fails, so a
+ * broken database surfaces as an error page rather than "no matches found",
+ * which would be an infuriating way to learn your database is down.
+ */
+export const getDestinations = cache(async (): Promise<Destination[]> => {
+  // NOTE: this select list must stay a single string literal — supabase-js
+  // inspects it at the *type* level to infer the row shape, and a value built
+  // by concatenation is no longer a literal type, which breaks inference.
+  // We list columns explicitly rather than using "*" so we don't fetch
+  // `created_at` on every request just to throw it away.
+  const { data, error } = await supabase
+    .from("destinations")
+    .select(
+      "id, name, country, tagline, emoji, local_culture, classic_sights, hotel_quality, food_scene, experiences, transit_quality, family_friendly, walkability, daily_cost, highlights",
+    )
+    .order("id");
+
+  if (error) {
+    throw new Error(`Failed to load destinations: ${error.message}`);
+  }
+
+  return data.map(toDestination);
+});

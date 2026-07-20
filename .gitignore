@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the example file carries no secrets and documents what's required,
+# so it must be committed. The `!` re-includes it after the blanket ignore.
+!.env.example
 
 # vercel
 .vercel
