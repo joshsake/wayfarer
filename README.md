@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Wayfarer
 
-## Getting Started
+A travel-matching app: answer five questions about how you like to travel, get
+three destinations scored against your answers — with the reasons why.
 
-First, run the development server:
+Built with Next.js 16 (App Router), Tailwind v4, Supabase, and Playwright.
+
+## Getting started
 
 ```bash
+npm install
+cp .env.example .env.local   # then fill in your Supabase values
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**The env step is not optional.** The app reads its Supabase connection details
+from the environment and throws at startup if they're missing — deliberately,
+so a misconfiguration fails immediately and obviously instead of rendering an
+empty results page. See [.env.example](.env.example) for where each value
+lives in the Supabase dashboard.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## How it fits together
 
-## Learn More
+```
+src/app/plan       the five-question wizard (client component)
+src/app/results    scores and renders matches (server component)
+src/lib/types.ts   the domain types everything else agrees on
+src/lib/matching.ts  rank() — pure scoring; recommend() — fetch + rank
+src/lib/destinations.ts  loads the catalog from Supabase, maps rows to types
+src/lib/supabase.ts      the shared Supabase client
+```
 
-To learn more about Next.js, take a look at the following resources:
+Two design choices worth knowing about:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Data flows straight into the server component.** `/results` already runs on
+the server, so it queries Supabase directly rather than calling an internal API
+route. An API route would mean the server making an HTTP request to itself to
+reach a database it can already talk to. Route handlers earn their place when a
+*browser* or an external caller needs the data.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**The scoring algorithm is pure.** `rank(prefs, destinations)` takes the
+catalog as an argument and does no I/O, so it can be unit-tested with a handful
+of fake destinations. `recommend()` is the thin async wrapper that fetches real
+data and delegates. Keeping I/O at the edges is what makes the interesting
+logic testable.
 
-## Deploy on Vercel
+## Database
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The destination catalog lives in a Supabase Postgres table. Schema and seed
+data are applied as migrations, so the database is reproducible rather than
+hand-edited. The `destinations` table has Row Level Security enabled with a
+single policy: anyone may `SELECT`, nobody may write through the API. Writes
+happen via migrations.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Score columns carry `CHECK (… between 0 and 100)` constraints — the TypeScript
+type documents that range in a comment, but only the database can enforce it.
+
+## Tests
+
+```bash
+npm run build          # Playwright serves the production build
+npx playwright test
+```
+
+Five end-to-end specs cover the wizard flow, the back button, the
+no-splurges path, and that results are actually personalized. Every selector is
+a `data-testid` planted in the components, not a CSS path that breaks when a
+class changes.
+
+## Deployment
+
+Vercel builds from the GitHub repo: every pull request gets a preview URL,
+every merge to `main` ships to production. GitHub Actions is the quality gate
+(build + E2E) and runs independently.
+
+Both `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` must
+be set in **three** places: `.env.local` for local dev, GitHub repository
+secrets for CI, and Vercel project environment variables for deploys.

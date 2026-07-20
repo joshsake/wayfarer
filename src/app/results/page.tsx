@@ -10,6 +10,11 @@ import type { Preferences, Splurge } from "@/lib/types";
 // `await` it (a common gotcha if you learned from older tutorials).
 // Scoring happens on the server; the browser receives finished HTML.
 //
+// Note how little changed when the catalog moved to Supabase: `recommend()`
+// gained an `await`. That's it. Because this component already runs on the
+// server, it queries the database directly — no internal API route, no extra
+// network hop, and the credentials never enter the browser bundle.
+//
 // Progressive disclosure, no JavaScript required: the "essentials" view
 // hides highlights behind a native <details> element. The browser does the
 // toggling for free — accessible, testable, zero client code.
@@ -40,7 +45,7 @@ export default async function ResultsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const prefs = parsePrefs(await searchParams);
-  const recommendations = recommend(prefs, 3);
+  const recommendations = await recommend(prefs, 3);
   const showEverything = prefs.detail === "everything";
 
   return (
