@@ -1,9 +1,15 @@
 # Wayfarer
 
+[![CI](https://github.com/joshsake/wayfarer/actions/workflows/ci.yml/badge.svg)](https://github.com/joshsake/wayfarer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A travel-matching app: answer five questions about how you like to travel, get
 three destinations scored against your answers — with the reasons why.
 
+**[▶ Try it live](https://wayfarer-xi.vercel.app)**
+
 Built with Next.js 16 (App Router), Tailwind v4, Supabase, and Playwright.
+Every push runs a production build and the Playwright suite in CI.
 
 ## Getting started
 
