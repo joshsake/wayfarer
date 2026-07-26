@@ -21,6 +21,7 @@ src/soundlab/
   binaural.py   spherical-head model + binaural (stereo) shoebox IR
   trajectory.py time-varying source positions (keyframes + interpolation)
   render.py     positioned/moving stems × IRs → at-seat audio — mono + binaural
+  corrector.py  derive per-ear EQ that pulls room render toward a reference
   io.py         wav read/write
   cli.py        thin I/O wrapper over the pure core
 tests/          pytest specs — no audio hardware required

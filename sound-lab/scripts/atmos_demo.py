@@ -19,6 +19,11 @@ import numpy as np
 from scipy import signal as sig
 
 from soundlab.binaural import SphericalHead
+from soundlab.corrector import (
+    apply_correction,
+    build_correction_filter,
+    derive_correction,
+)
 from soundlab.io import write_wav
 from soundlab.render import (
     MovingStem,
@@ -30,6 +35,10 @@ from soundlab.render import (
 )
 from soundlab.room import Room
 from soundlab.trajectory import Trajectory
+
+
+ANECHOIC_ABSORPTION = 1.0
+ANECHOIC_MAX_ORDER = 0
 
 
 FS = 48_000
@@ -141,6 +150,13 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     room, static_stems, heli = build_scene(FS, args.duration)
+    # Same geometry, no room — the "headphone-like" reference the corrector
+    # targets. Ir_duration collapses to direct path only.
+    anechoic = Room(
+        dims=room.dims,
+        absorption=ANECHOIC_ABSORPTION,
+        max_order=ANECHOIC_MAX_ORDER,
+    )
     head = SphericalHead()
 
     seats = {
@@ -150,6 +166,7 @@ def main() -> int:
 
     mono: dict[str, np.ndarray] = {}
     binaural: dict[str, np.ndarray] = {}
+    reference: dict[str, np.ndarray] = {}
     for name, pos in seats.items():
         static_mono = render_at_seat(static_stems, room, pos, FS, ir_duration=0.5)
         static_bin = render_at_seat_binaural(
@@ -163,6 +180,15 @@ def main() -> int:
         # straight-through add works.
         mono[name] = static_mono + heli_mono
         binaural[name] = static_bin + heli_bin
+
+        # Anechoic reference — same seat, same head, no room reflections.
+        anech_static = render_at_seat_binaural(
+            static_stems, anechoic, pos, LISTENER_FORWARD, head, FS, ir_duration=0.1,
+        )
+        anech_heli = render_moving_at_seat_binaural(
+            heli, anechoic, pos, LISTENER_FORWARD, head, FS, ir_duration=0.1,
+        )
+        reference[name] = anech_static + anech_heli
 
     # One scale factor for mono outputs, one for binaural — so within each
     # format seats stay comparable, but mono vs. stereo levels aren't forced
@@ -193,6 +219,33 @@ def main() -> int:
         print(
             f"  bin/ {name:<11}  peak {20*np.log10(peak):+.1f} dB  "
             f"L/R balance {lr_balance_db:+.2f} dB (R relative to L)  → {path}"
+        )
+
+    # --- Corrector: derive per-ear EQ from anechoic reference, apply to room render.
+    for name, room_render in binaural.items():
+        ref = reference[name]
+        n = min(len(ref), len(room_render))
+        # Per-ear correction.
+        # level_match=True so the correction focuses on spectral SHAPE,
+        # not the fact that a distant seat is quieter than the direct-path
+        # reference. Without it the corrector would just say "attenuate
+        # everything" — mathematically correct but not what we want to
+        # demonstrate.
+        freqs, gain_l = derive_correction(ref[:n, 0], room_render[:n, 0], FS, level_match=True)
+        _,     gain_r = derive_correction(ref[:n, 1], room_render[:n, 1], FS, level_match=True)
+        taps_l = build_correction_filter(freqs, gain_l, FS)
+        taps_r = build_correction_filter(freqs, gain_r, FS)
+        per_ear_taps = np.stack([taps_l, taps_r], axis=1)
+        corrected = apply_correction(room_render, per_ear_taps)
+
+        path = out_dir / f"seat-{name}-corrected.wav"
+        _write_scaled(path, corrected, FS, bin_scale)
+        # Peak correction dB per ear — quick sanity print.
+        peak_gain_l_db = 20 * np.log10(gain_l.max())
+        peak_cut_l_db = 20 * np.log10(gain_l.min())
+        print(
+            f"  cor/ {name:<11}  L: max {peak_gain_l_db:+.1f} / min {peak_cut_l_db:+.1f} dB  "
+            f"→ {path}"
         )
 
     # Dry stem sum — the "no-room, no-distance" reference (mono).

@@ -1,4 +1,11 @@
 from .binaural import SphericalHead, binaural_shoebox_ir, world_to_listener_angles
+from .corrector import (
+    apply_correction,
+    build_correction_filter,
+    derive_correction,
+    smooth_fractional_octave,
+    spectrum_of,
+)
 from .render import (
     MovingStem,
     PositionedStem,
@@ -23,4 +30,9 @@ __all__ = [
     "world_to_listener_angles",
     "Keyframe",
     "Trajectory",
+    "spectrum_of",
+    "smooth_fractional_octave",
+    "derive_correction",
+    "build_correction_filter",
+    "apply_correction",
 ]

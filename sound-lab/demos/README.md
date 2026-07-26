@@ -17,6 +17,11 @@ Binaural (per-ear stereo, spherical-head model):
 - `seat-sweet-spot-binaural.wav`
 - `seat-back-corner-binaural.wav`
 
+Corrected (per-ear EQ derived from the anechoic-at-seat reference):
+
+- `seat-sweet-spot-corrected.wav`
+- `seat-back-corner-corrected.wav`
+
 Reference:
 
 - `reference-dry-sum.wav` — the raw stem sum. No room, no distance. Not a
@@ -48,6 +53,21 @@ cues instantly.
   seat and slightly later at the back-corner seat. Whether it "hits" is
   where headphones win — a captured mono/binaural signal can't reproduce
   chest-cavity coupling.
+
+## About the corrected files
+
+Each corrected file is the room render passed through a per-ear FIR
+whose magnitude response is `|reference| / |measured|` — where the
+reference is the same scene rendered anechoically (`absorption=1.0,
+max_order=0`) at the same seat. Level-matched before the ratio so the
+correction targets **spectral shape**, not loudness. Third-octave
+smoothing, clamped to ±12 dB so we don't try to invert nulls or boost
+noise.
+
+What it should do on headphones vs. the un-corrected binaural file:
+tighter mids (some of the reverb-added mud pulled back), more even
+tone across the band. The 12 dB clamp is honest — real bass a
+speaker can't produce, an EQ can't restore.
 
 ## Limitations of the current model
 
