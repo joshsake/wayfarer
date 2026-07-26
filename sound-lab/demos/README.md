@@ -35,9 +35,12 @@ cues instantly.
 
 - **Panning.** The dialogue channel is directly in front (should sit
   centred). Bed-FL/FR should spread wide. LFE is in the front-left corner
-  and should feel slightly to the left. The helicopter is overhead — with
-  a spherical head model it stays centred (no pinna cues for elevation),
-  which is one of the limitations noted below.
+  and should feel slightly to the left.
+- **The circling helicopter** orbits room-centre at 3 m radius over the
+  full 5 s — one complete loop. On the binaural mixes it should sweep
+  around you (front → right → back → left → front). Elevation still isn't
+  cued (spherical head has no pinna), so it stays on the horizontal plane
+  perceptually rather than "above."
 - **Level & timbre between seats.** The back-corner mono render is
   ~2 dB louder than the sweet-spot one (SR speaker proximity + corner
   loading in the shoebox model) with a heavier reverb tail.
@@ -54,7 +57,5 @@ cues instantly.
   elevation and front/back. Sources directly overhead and directly behind
   will sound the same as sources in front. Real measured HRTFs (SOFA
   format) plug into the same `HeadModel` interface later.
-- **Static sources.** A real Atmos object moves. Motion needs block-wise
-  IR switching with crossfades.
 - **Uniform-absorption shoebox.** No frequency-dependent materials, no
   seating rows, no scattering.

@@ -17,12 +17,13 @@ unit-testable without ears.
 
 ```
 src/soundlab/
-  room.py      shoebox room IR + image-source enumerator (pure geometry)
-  binaural.py  spherical-head model + binaural (stereo) shoebox IR
-  render.py    positioned stems × IRs → at-seat audio (pure) — mono + binaural
-  io.py        wav read/write
-  cli.py       thin I/O wrapper over the pure core
-tests/         pytest specs — no audio hardware required
+  room.py       shoebox room IR + image-source enumerator (pure geometry)
+  binaural.py   spherical-head model + binaural (stereo) shoebox IR
+  trajectory.py time-varying source positions (keyframes + interpolation)
+  render.py     positioned/moving stems × IRs → at-seat audio — mono + binaural
+  io.py         wav read/write
+  cli.py        thin I/O wrapper over the pure core
+tests/          pytest specs — no audio hardware required
 ```
 
 ## Design notes

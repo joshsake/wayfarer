@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .room import SPEED_OF_SOUND, Room, iter_image_sources
+from .room import SPEED_OF_SOUND, Room, image_source_arrays
 
 
 HEAD_RADIUS_M = 0.0875                                   # ~average human head radius
@@ -108,24 +108,53 @@ def binaural_shoebox_ir(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Binaural (left, right) IR pair for a shoebox room + head model.
 
-    Iterates the same image sources the mono path uses, then splits each
-    arrival across the two ears via ``head.per_ear_offsets``.
+    All arithmetic is vectorised across image sources — one call per
+    render block, not one per image source.
     """
+    positions, distances, amps = image_source_arrays(room, source, listener)
     n = int(duration * fs)
     left = np.zeros(n, dtype=np.float64)
     right = np.zeros(n, dtype=np.float64)
-    listener_arr = np.asarray(listener, dtype=float)
 
-    for img in iter_image_sources(room, source, listener):
-        direction = (img.position - listener_arr) / img.distance
-        az, el = world_to_listener_angles(direction, listener_forward)
-        (l_off, l_gain), (r_off, r_gain) = head.per_ear_offsets(az, el, fs)
-        base = int(round(img.distance / SPEED_OF_SOUND * fs))
-        l_idx = base + l_off
-        r_idx = base + r_off
-        if 0 <= l_idx < n:
-            left[l_idx] += img.amplitude * l_gain
-        if 0 <= r_idx < n:
-            right[r_idx] += img.amplitude * r_gain
+    listener_arr = np.asarray(listener, dtype=np.float64)
+    forward = np.asarray(listener_forward, dtype=np.float64)
+    forward = forward / np.linalg.norm(forward)
+    up = np.array([0.0, 0.0, 1.0])
+    right_vec = np.cross(forward, up)
+    right_vec = right_vec / np.linalg.norm(right_vec)
 
+    # Direction from listener to each image source, projected onto the
+    # listener's (forward, right, up) basis.
+    dirs = (positions - listener_arr) / distances[:, None]     # (N, 3)
+    d_forward = dirs @ forward
+    d_right = dirs @ right_vec
+    d_up = np.clip(dirs @ up, -1.0, 1.0)
+
+    az = np.arctan2(d_right, d_forward)
+    el = np.arcsin(d_up)
+    cos_el = np.cos(el)
+    sin_az = np.sin(az)
+
+    # Woodworth ITD split half-half about the head-centre arrival.
+    itd_sec = ITD_MAX_SEC * sin_az * cos_el
+    half = itd_sec / 2.0
+    left_off = np.round(+half * fs).astype(np.int64)
+    right_off = np.round(-half * fs).astype(np.int64)
+
+    # IID: same smooth mapping as SphericalHead._shadow_gain.
+    dot_r = sin_az * cos_el                               # +1 = source at right
+    t_right = (dot_r + 1.0) / 2.0
+    t_left = (-dot_r + 1.0) / 2.0
+    gmin = head.min_contralateral_gain
+    right_gain = gmin + (1.0 - gmin) * t_right
+    left_gain = gmin + (1.0 - gmin) * t_left
+
+    base = np.round(distances / SPEED_OF_SOUND * fs).astype(np.int64)
+    l_idx = base + left_off
+    r_idx = base + right_off
+
+    lm = (l_idx >= 0) & (l_idx < n)
+    rm = (r_idx >= 0) & (r_idx < n)
+    np.add.at(left, l_idx[lm], (amps * left_gain)[lm])
+    np.add.at(right, r_idx[rm], (amps * right_gain)[rm])
     return left, right

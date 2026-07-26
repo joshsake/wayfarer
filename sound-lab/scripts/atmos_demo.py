@@ -3,11 +3,11 @@
 Every stem here is synthesised in code (sines, filtered noise, envelopes).
 Nothing is licensed content — safe to commit and share. The point isn't a
 believable helicopter; it's a scene with enough positional variety
-(front bed, surrounds, LFE in a corner, an object *above* the bed layer)
-that the room simulator has something interesting to do.
+(front bed, surrounds, LFE in a corner, an object *circling above* the
+bed layer) that the room simulator has something interesting to do.
 
-Static positions for now. Adding a moving object means block-wise IR
-switching with crossfades — worth doing once the static scene is trusted.
+The helicopter uses the moving-source renderer — its position updates
+per block via Trajectory keyframes.
 """
 
 from __future__ import annotations
@@ -20,8 +20,16 @@ from scipy import signal as sig
 
 from soundlab.binaural import SphericalHead
 from soundlab.io import write_wav
-from soundlab.render import PositionedStem, render_at_seat, render_at_seat_binaural
+from soundlab.render import (
+    MovingStem,
+    PositionedStem,
+    render_at_seat,
+    render_at_seat_binaural,
+    render_moving_at_seat,
+    render_moving_at_seat_binaural,
+)
 from soundlab.room import Room
+from soundlab.trajectory import Trajectory
 
 
 FS = 48_000
@@ -81,22 +89,33 @@ def synth_lfe_thump(duration: float, fs: int, at_seconds: float = 2.0) -> np.nda
     return x * 0.9
 
 
-def build_scene(fs: int, duration: float) -> tuple[Room, list[PositionedStem]]:
-    """5.1.4-ish layout scaled to a 12×8×4 m room. Object above the bed."""
+def build_scene(
+    fs: int, duration: float
+) -> tuple[Room, list[PositionedStem], MovingStem]:
+    """5.1.4-ish layout scaled to a 12×8×4 m room, plus a circling object.
+
+    Returns ``(room, static_stems, moving_stem)``. The helicopter orbits
+    room-centre at ceiling height in the (x, y) plane over ``duration``
+    seconds so the loop closes back to its start.
+    """
     room = Room(dims=(12.0, 8.0, 4.0), absorption=0.25, max_order=6)
-    # Speaker positions: front row at y≈0.3, surrounds along the side walls,
-    # LFE in the front-left corner near the floor. Bed height ≈ 1.6 m
-    # (ear-level for seated listeners).
-    stems = [
+    static = [
         PositionedStem("bed-fl", synth_bed_music(duration, fs, 220.0),        (2.0, 0.3, 1.6)),
         PositionedStem("bed-fr", synth_bed_music(duration, fs, 220.0 * 1.25), (10.0, 0.3, 1.6)),
         PositionedStem("bed-c",  synth_dialogue(duration, fs),                (6.0, 0.3, 1.6)),
         PositionedStem("bed-sl", synth_ambience(duration, fs, seed=10),       (0.3, 5.0, 1.6)),
         PositionedStem("bed-sr", synth_ambience(duration, fs, seed=11),       (11.7, 5.0, 1.6)),
         PositionedStem("lfe",    synth_lfe_thump(duration, fs),               (0.3, 0.3, 0.3)),
-        PositionedStem("obj-heli", synth_helicopter(duration, fs),            (6.0, 4.0, 3.7)),
     ]
-    return room, stems
+    heli = MovingStem(
+        label="obj-heli",
+        audio=synth_helicopter(duration, fs),
+        trajectory=Trajectory.circle_xy(
+            center_xy=(6.0, 4.0), radius=3.0, height=3.7,
+            duration=duration, n_points=32,
+        ),
+    )
+    return room, static, heli
 
 
 def _write_scaled(path: Path, audio: np.ndarray, fs: int, scale: float) -> None:
@@ -121,7 +140,7 @@ def main() -> int:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    room, stems = build_scene(FS, args.duration)
+    room, static_stems, heli = build_scene(FS, args.duration)
     head = SphericalHead()
 
     seats = {
@@ -132,10 +151,18 @@ def main() -> int:
     mono: dict[str, np.ndarray] = {}
     binaural: dict[str, np.ndarray] = {}
     for name, pos in seats.items():
-        mono[name] = render_at_seat(stems, room, pos, FS, ir_duration=0.5)
-        binaural[name] = render_at_seat_binaural(
-            stems, room, pos, LISTENER_FORWARD, head, FS, ir_duration=0.5,
+        static_mono = render_at_seat(static_stems, room, pos, FS, ir_duration=0.5)
+        static_bin = render_at_seat_binaural(
+            static_stems, room, pos, LISTENER_FORWARD, head, FS, ir_duration=0.5,
         )
+        heli_mono = render_moving_at_seat(heli, room, pos, FS, ir_duration=0.5)
+        heli_bin = render_moving_at_seat_binaural(
+            heli, room, pos, LISTENER_FORWARD, head, FS, ir_duration=0.5,
+        )
+        # Static and moving paths use the same length convention, so a
+        # straight-through add works.
+        mono[name] = static_mono + heli_mono
+        binaural[name] = static_bin + heli_bin
 
     # One scale factor for mono outputs, one for binaural — so within each
     # format seats stay comparable, but mono vs. stereo levels aren't forced
@@ -169,9 +196,10 @@ def main() -> int:
         )
 
     # Dry stem sum — the "no-room, no-distance" reference (mono).
-    dry_len = max(len(s.audio) for s in stems)
+    all_stems = static_stems + [heli]
+    dry_len = max(len(s.audio) for s in all_stems)
     dry = np.zeros(dry_len)
-    for s in stems:
+    for s in all_stems:
         dry[: len(s.audio)] += s.audio
     write_wav(out_dir / "reference-dry-sum.wav", dry, FS)
     print(f"  reference-dry-sum   → {out_dir / 'reference-dry-sum.wav'}")
