@@ -18,8 +18,9 @@ from pathlib import Path
 import numpy as np
 from scipy import signal as sig
 
+from soundlab.binaural import SphericalHead
 from soundlab.io import write_wav
-from soundlab.render import PositionedStem, render_at_seat
+from soundlab.render import PositionedStem, render_at_seat, render_at_seat_binaural
 from soundlab.room import Room
 
 
@@ -99,12 +100,16 @@ def build_scene(fs: int, duration: float) -> tuple[Room, list[PositionedStem]]:
 
 
 def _write_scaled(path: Path, audio: np.ndarray, fs: int, scale: float) -> None:
-    """Bypass write_wav's per-file normalisation so seat A/B keep their
-    relative level — otherwise every output ends up at -1 dBFS and the
-    interesting delta vanishes.
+    """Bypass write_wav's per-file normalisation so cross-seat outputs keep
+    their relative level — otherwise every file ends up at -1 dBFS and the
+    interesting delta vanishes. Handles mono (1-D) and stereo ((n,2)).
     """
     import soundfile as sf
     sf.write(str(path), (audio * scale).astype(np.float32), fs)
+
+
+# Listener faces the front wall (y=0), so forward = -y in world coordinates.
+LISTENER_FORWARD = (0.0, -1.0, 0.0)
 
 
 def main() -> int:
@@ -117,37 +122,59 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     room, stems = build_scene(FS, args.duration)
+    head = SphericalHead()
 
     seats = {
         "sweet-spot":  (6.0, 5.0, 1.2),   # centre of the room, mid-hall
         "back-corner": (10.5, 7.5, 1.2),  # rear-right, close to two walls
     }
 
-    rendered: dict[str, np.ndarray] = {}
+    mono: dict[str, np.ndarray] = {}
+    binaural: dict[str, np.ndarray] = {}
     for name, pos in seats.items():
-        rendered[name] = render_at_seat(stems, room, pos, FS, ir_duration=0.5)
+        mono[name] = render_at_seat(stems, room, pos, FS, ir_duration=0.5)
+        binaural[name] = render_at_seat_binaural(
+            stems, room, pos, LISTENER_FORWARD, head, FS, ir_duration=0.5,
+        )
 
-    # Shared normalisation across all outputs so cross-seat comparison is honest.
-    global_peak = max(float(np.max(np.abs(x))) for x in rendered.values())
-    if global_peak <= 0:
+    # One scale factor for mono outputs, one for binaural — so within each
+    # format seats stay comparable, but mono vs. stereo levels aren't forced
+    # onto a shared reference (they'd have very different peak statistics).
+    mono_peak = max(float(np.max(np.abs(x))) for x in mono.values())
+    bin_peak = max(float(np.max(np.abs(x))) for x in binaural.values())
+    if mono_peak <= 0 or bin_peak <= 0:
         raise RuntimeError("rendered scene is silent — bug in scene setup")
-    scale = 10 ** (-1.0 / 20.0) / global_peak  # -1 dBFS ceiling on the loudest seat
+    ceil = 10 ** (-1.0 / 20.0)                 # -1 dBFS
+    mono_scale = ceil / mono_peak
+    bin_scale = ceil / bin_peak
 
-    for name, audio in rendered.items():
+    for name, audio in mono.items():
         path = out_dir / f"seat-{name}.wav"
-        _write_scaled(path, audio, FS, scale)
-        rms = float(np.sqrt(np.mean(audio ** 2)))
+        _write_scaled(path, audio, FS, mono_scale)
         peak = float(np.max(np.abs(audio)))
-        print(f"  {name:>11}  peak {20*np.log10(peak):+.1f} dBFS  rms {20*np.log10(rms):+.1f} dBFS")
-        print(f"                 → {path}")
+        rms = float(np.sqrt(np.mean(audio ** 2)))
+        print(f"  mono/{name:<11}  peak {20*np.log10(peak):+.1f} dB  rms {20*np.log10(rms):+.1f} dB  → {path}")
 
-    # Dry stem sum — the "no-room, no-distance" reference.
+    for name, audio in binaural.items():
+        path = out_dir / f"seat-{name}-binaural.wav"
+        _write_scaled(path, audio, FS, bin_scale)
+        peak = float(np.max(np.abs(audio)))
+        # Per-ear RMS ratio hints at how much the render leans one way.
+        rms_l = float(np.sqrt(np.mean(audio[:, 0] ** 2)))
+        rms_r = float(np.sqrt(np.mean(audio[:, 1] ** 2)))
+        lr_balance_db = 20 * np.log10(rms_r / rms_l) if rms_l > 0 else float("inf")
+        print(
+            f"  bin/ {name:<11}  peak {20*np.log10(peak):+.1f} dB  "
+            f"L/R balance {lr_balance_db:+.2f} dB (R relative to L)  → {path}"
+        )
+
+    # Dry stem sum — the "no-room, no-distance" reference (mono).
     dry_len = max(len(s.audio) for s in stems)
     dry = np.zeros(dry_len)
     for s in stems:
         dry[: len(s.audio)] += s.audio
     write_wav(out_dir / "reference-dry-sum.wav", dry, FS)
-    print(f"  reference-dry-sum → {out_dir / 'reference-dry-sum.wav'}")
+    print(f"  reference-dry-sum   → {out_dir / 'reference-dry-sum.wav'}")
     return 0
 
 

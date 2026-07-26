@@ -17,8 +17,9 @@ unit-testable without ears.
 
 ```
 src/soundlab/
-  room.py      shoebox room IR via image-source method
-  render.py    positioned stems × IRs → at-seat audio (pure)
+  room.py      shoebox room IR + image-source enumerator (pure geometry)
+  binaural.py  spherical-head model + binaural (stereo) shoebox IR
+  render.py    positioned stems × IRs → at-seat audio (pure) — mono + binaural
   io.py        wav read/write
   cli.py       thin I/O wrapper over the pure core
 tests/         pytest specs — no audio hardware required
@@ -45,11 +46,11 @@ pip install -e '.[dev]'
 python scripts/atmos_demo.py --out-dir demos
 ```
 
-Produces `demos/seat-sweet-spot.wav` and `demos/seat-back-corner.wav` —
-the same synthetic 5.1.4 + LFE + overhead-object scene rendered at two
-seats in a 12×8×4 m room, plus a dry stem-sum reference. See
-`demos/README.md` for what to listen for and the known limitations
-(mono-per-seat, static sources).
+Produces mono and binaural renders of the same synthetic 5.1.4 + LFE +
+overhead-object scene at two seats in a 12×8×4 m room, plus a dry
+stem-sum reference. The binaural files (`*-binaural.wav`) use a
+spherical-head model for ITD + IID — play them on headphones.
+See `demos/README.md` for what to listen for and known limitations.
 
 ## Usage
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass
+from typing import Iterator
 
 import numpy as np
 
@@ -32,18 +33,30 @@ class Room:
             raise ValueError(f"max_order must be >= 0, got {self.max_order}")
 
 
-def shoebox_ir(
+@dataclass(frozen=True)
+class ImageSource:
+    """One image source and its arrival at the listener.
+
+    ``position`` is the mirror-source coordinate in world space.
+    ``distance`` is the straight-line distance from that image to the listener.
+    ``amplitude`` is (β**reflections) / distance — the 1/r spreading loss
+    combined with the reflection-coefficient product.
+    """
+    position: np.ndarray
+    distance: float
+    amplitude: float
+
+
+def iter_image_sources(
     room: Room,
     source: tuple[float, float, float],
     listener: tuple[float, float, float],
-    fs: int,
-    duration: float = 1.0,
-) -> np.ndarray:
-    """Image-source method IR for a shoebox room.
+) -> Iterator[ImageSource]:
+    """Enumerate image sources for the shoebox room.
 
-    Returns a mono impulse response of length ``int(duration * fs)`` samples.
-    Reflections that would land past the end of the IR are dropped, which is
-    fine as long as ``duration`` exceeds the room's effective reverb time.
+    Pure geometry — no sample rate, no time-domain rendering. Used by both
+    the mono IR path (``shoebox_ir``) and the binaural path so the two
+    stay consistent by construction.
 
     Reference: Allen & Berkley, "Image method for efficiently simulating
     small-room acoustics," JASA 65(4), 1979.
@@ -56,13 +69,9 @@ def shoebox_ir(
     r = np.asarray(listener, dtype=float)
     beta = np.sqrt(1.0 - room.absorption)
 
-    n_samples = int(duration * fs)
-    ir = np.zeros(n_samples, dtype=np.float64)
-
     order = room.max_order
     for nx, ny, nz in itertools.product(range(-order, order + 1), repeat=3):
         for qx, qy, qz in itertools.product((0, 1), repeat=3):
-            # Image source position for this (cell, quadrant) pair.
             img = np.array([
                 (1 - 2 * qx) * s[0] + 2 * nx * L[0],
                 (1 - 2 * qy) * s[1] + 2 * ny * L[1],
@@ -70,19 +79,30 @@ def shoebox_ir(
             ])
             dist = float(np.linalg.norm(img - r))
             if dist < 1e-9:
-                # Source coincident with listener; skip the singular term.
-                continue
-            delay = int(round(dist / SPEED_OF_SOUND * fs))
-            if delay >= n_samples:
                 continue
             reflections = (
                 abs(nx - qx) + abs(nx)
                 + abs(ny - qy) + abs(ny)
                 + abs(nz - qz) + abs(nz)
             )
-            amp = (beta ** reflections) / dist
-            ir[delay] += amp
+            amplitude = (beta ** reflections) / dist
+            yield ImageSource(position=img, distance=dist, amplitude=amplitude)
 
+
+def shoebox_ir(
+    room: Room,
+    source: tuple[float, float, float],
+    listener: tuple[float, float, float],
+    fs: int,
+    duration: float = 1.0,
+) -> np.ndarray:
+    """Mono IR by summing scaled impulses at per-image-source delays."""
+    n_samples = int(duration * fs)
+    ir = np.zeros(n_samples, dtype=np.float64)
+    for img in iter_image_sources(room, source, listener):
+        delay = int(round(img.distance / SPEED_OF_SOUND * fs))
+        if delay < n_samples:
+            ir[delay] += img.amplitude
     return ir
 
 

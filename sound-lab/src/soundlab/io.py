@@ -16,7 +16,13 @@ def read_mono_wav(path: str | Path) -> tuple[np.ndarray, int]:
 
 
 def write_wav(path: str | Path, audio: np.ndarray, fs: int, *, normalise: bool = True) -> None:
-    """Write float audio to wav. When ``normalise``, peak-scale to -1 dBFS."""
+    """Write float audio to wav.
+
+    Mono input is 1-D. Stereo input is ``(n, 2)`` — the shape ``sf.write``
+    treats as interleaved channels. Normalisation, when enabled, peak-scales
+    the whole file (all channels together) so a stereo pair keeps its
+    left/right balance.
+    """
     out = audio
     if normalise:
         peak = float(np.max(np.abs(out)))
