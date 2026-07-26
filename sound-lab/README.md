@@ -38,6 +38,19 @@ tests/         pytest specs — no audio hardware required
   parameterised (room dims, absorption). Measured IRs from real rooms plug
   into the same convolution path with no code changes.
 
+## Demo
+
+```bash
+pip install -e '.[dev]'
+python scripts/atmos_demo.py --out-dir demos
+```
+
+Produces `demos/seat-sweet-spot.wav` and `demos/seat-back-corner.wav` —
+the same synthetic 5.1.4 + LFE + overhead-object scene rendered at two
+seats in a 12×8×4 m room, plus a dry stem-sum reference. See
+`demos/README.md` for what to listen for and the known limitations
+(mono-per-seat, static sources).
+
 ## Usage
 
 ```bash

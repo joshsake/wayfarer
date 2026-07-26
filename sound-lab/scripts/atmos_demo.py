@@ -1,0 +1,155 @@
+"""Generate a synthetic 5.1.4 + object scene and render it at two seats.
+
+Every stem here is synthesised in code (sines, filtered noise, envelopes).
+Nothing is licensed content — safe to commit and share. The point isn't a
+believable helicopter; it's a scene with enough positional variety
+(front bed, surrounds, LFE in a corner, an object *above* the bed layer)
+that the room simulator has something interesting to do.
+
+Static positions for now. Adding a moving object means block-wise IR
+switching with crossfades — worth doing once the static scene is trusted.
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+import numpy as np
+from scipy import signal as sig
+
+from soundlab.io import write_wav
+from soundlab.render import PositionedStem, render_at_seat
+from soundlab.room import Room
+
+
+FS = 48_000
+DURATION = 5.0
+
+
+def synth_bed_music(duration: float, fs: int, root_hz: float) -> np.ndarray:
+    """Chord pad — fundamental + fifth + octave, with slow tremolo."""
+    t = np.arange(int(duration * fs)) / fs
+    partials = [root_hz, root_hz * 1.5, root_hz * 2.0]
+    x = sum(0.3 * np.sin(2 * np.pi * f * t) for f in partials)
+    env = 0.7 + 0.3 * np.sin(2 * np.pi * 1.5 * t)
+    return x * env
+
+
+def synth_dialogue(duration: float, fs: int) -> np.ndarray:
+    """Speech-like: bandpassed noise pulses at a syllable rate."""
+    n = int(duration * fs)
+    rng = np.random.default_rng(1)
+    noise = rng.standard_normal(n)
+    b, a = sig.butter(4, [300 / (fs / 2), 3400 / (fs / 2)], btype="band")
+    voiced = sig.lfilter(b, a, noise)
+    t = np.arange(n) / fs
+    syllable_env = np.maximum(0.0, np.sin(2 * np.pi * 4.0 * t)) ** 2
+    return voiced * syllable_env * 0.5
+
+
+def synth_ambience(duration: float, fs: int, seed: int) -> np.ndarray:
+    """Low-passed noise — room tone / crowd murmur."""
+    n = int(duration * fs)
+    rng = np.random.default_rng(seed)
+    noise = rng.standard_normal(n)
+    b, a = sig.butter(2, 2000 / (fs / 2), btype="low")
+    return sig.lfilter(b, a, noise) * 0.15
+
+
+def synth_helicopter(duration: float, fs: int) -> np.ndarray:
+    """Bandpassed noise + 10 Hz tremolo — the 'rotor' shape."""
+    n = int(duration * fs)
+    rng = np.random.default_rng(2)
+    noise = rng.standard_normal(n)
+    b, a = sig.butter(4, [200 / (fs / 2), 800 / (fs / 2)], btype="band")
+    rotor = sig.lfilter(b, a, noise)
+    t = np.arange(n) / fs
+    tremolo = 0.5 + 0.5 * np.sin(2 * np.pi * 10.0 * t)
+    return rotor * tremolo * 0.6
+
+
+def synth_lfe_thump(duration: float, fs: int, at_seconds: float = 2.0) -> np.ndarray:
+    """One 40 Hz kick with a fast attack, exponential decay."""
+    n = int(duration * fs)
+    x = np.zeros(n)
+    start = int(at_seconds * fs)
+    hit_len = int(0.6 * fs)
+    t = np.arange(hit_len) / fs
+    x[start : start + hit_len] = np.sin(2 * np.pi * 40 * t) * np.exp(-t * 3.0)
+    return x * 0.9
+
+
+def build_scene(fs: int, duration: float) -> tuple[Room, list[PositionedStem]]:
+    """5.1.4-ish layout scaled to a 12×8×4 m room. Object above the bed."""
+    room = Room(dims=(12.0, 8.0, 4.0), absorption=0.25, max_order=6)
+    # Speaker positions: front row at y≈0.3, surrounds along the side walls,
+    # LFE in the front-left corner near the floor. Bed height ≈ 1.6 m
+    # (ear-level for seated listeners).
+    stems = [
+        PositionedStem("bed-fl", synth_bed_music(duration, fs, 220.0),        (2.0, 0.3, 1.6)),
+        PositionedStem("bed-fr", synth_bed_music(duration, fs, 220.0 * 1.25), (10.0, 0.3, 1.6)),
+        PositionedStem("bed-c",  synth_dialogue(duration, fs),                (6.0, 0.3, 1.6)),
+        PositionedStem("bed-sl", synth_ambience(duration, fs, seed=10),       (0.3, 5.0, 1.6)),
+        PositionedStem("bed-sr", synth_ambience(duration, fs, seed=11),       (11.7, 5.0, 1.6)),
+        PositionedStem("lfe",    synth_lfe_thump(duration, fs),               (0.3, 0.3, 0.3)),
+        PositionedStem("obj-heli", synth_helicopter(duration, fs),            (6.0, 4.0, 3.7)),
+    ]
+    return room, stems
+
+
+def _write_scaled(path: Path, audio: np.ndarray, fs: int, scale: float) -> None:
+    """Bypass write_wav's per-file normalisation so seat A/B keep their
+    relative level — otherwise every output ends up at -1 dBFS and the
+    interesting delta vanishes.
+    """
+    import soundfile as sf
+    sf.write(str(path), (audio * scale).astype(np.float32), fs)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--out-dir", default="demos")
+    parser.add_argument("--duration", type=float, default=DURATION)
+    args = parser.parse_args()
+
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    room, stems = build_scene(FS, args.duration)
+
+    seats = {
+        "sweet-spot":  (6.0, 5.0, 1.2),   # centre of the room, mid-hall
+        "back-corner": (10.5, 7.5, 1.2),  # rear-right, close to two walls
+    }
+
+    rendered: dict[str, np.ndarray] = {}
+    for name, pos in seats.items():
+        rendered[name] = render_at_seat(stems, room, pos, FS, ir_duration=0.5)
+
+    # Shared normalisation across all outputs so cross-seat comparison is honest.
+    global_peak = max(float(np.max(np.abs(x))) for x in rendered.values())
+    if global_peak <= 0:
+        raise RuntimeError("rendered scene is silent — bug in scene setup")
+    scale = 10 ** (-1.0 / 20.0) / global_peak  # -1 dBFS ceiling on the loudest seat
+
+    for name, audio in rendered.items():
+        path = out_dir / f"seat-{name}.wav"
+        _write_scaled(path, audio, FS, scale)
+        rms = float(np.sqrt(np.mean(audio ** 2)))
+        peak = float(np.max(np.abs(audio)))
+        print(f"  {name:>11}  peak {20*np.log10(peak):+.1f} dBFS  rms {20*np.log10(rms):+.1f} dBFS")
+        print(f"                 → {path}")
+
+    # Dry stem sum — the "no-room, no-distance" reference.
+    dry_len = max(len(s.audio) for s in stems)
+    dry = np.zeros(dry_len)
+    for s in stems:
+        dry[: len(s.audio)] += s.audio
+    write_wav(out_dir / "reference-dry-sum.wav", dry, FS)
+    print(f"  reference-dry-sum → {out_dir / 'reference-dry-sum.wav'}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
