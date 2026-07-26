@@ -54,6 +54,12 @@ Measured wav-based IRs plug straight into the renderer via
 `soundlab.io.read_mono_wav` — no code change to substitute them for the
 synthetic `shoebox_ir` output.
 
+If your system is a Nakamichi Dragon soundbar,
+[TEST_PROTOCOL_DRAGON.md](TEST_PROTOCOL_DRAGON.md) is a step-by-step run
+you can follow end-to-end in a session: baseline sweep, model
+comparison, corrector loop, and Dragon SSE on/off/with-your-correction
+comparison.
+
 ## Demo
 
 ```bash
