@@ -41,6 +41,19 @@ tests/          pytest specs — no audio hardware required
   parameterised (room dims, absorption). Measured IRs from real rooms plug
   into the same convolution path with no code changes.
 
+## Testing this against reality
+
+The prototype is purely numerical — synthesised scenes, synthesised
+rooms. To validate any of it against a real theatre or listening room
+you need measurement microphones and a recorder. See
+[HARDWARE.md](HARDWARE.md) for a tiered kit list, from a
+~$150 minimum (capture a real room IR) to a ~$2000 rig (multi-position
+measurement + tactile testing).
+
+Measured wav-based IRs plug straight into the renderer via
+`soundlab.io.read_mono_wav` — no code change to substitute them for the
+synthetic `shoebox_ir` output.
+
 ## Demo
 
 ```bash
