@@ -4,7 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A travel-matching app: answer five questions about how you like to travel, get
-three destinations scored against your answers — with the reasons why.
+three destinations scored against your answers — with the reasons why. It also
+splits a multi-country trip: give it your dates, countries, and minimum stays,
+and it allocates the days into an ordered itinerary — again with the reasons why.
 
 **[▶ Try it live](https://wayfarer-xi.vercel.app)**
 
@@ -36,8 +38,11 @@ lives in the Supabase dashboard.
 ```
 src/app/plan       the five-question wizard (client component)
 src/app/results    scores and renders matches (server component)
+src/app/trip       the trip-splitter form (client component)
+src/app/trip/results  runs the split and renders the legs (server component)
 src/lib/types.ts   the domain types everything else agrees on
 src/lib/matching.ts  rank() — pure scoring; recommend() — fetch + rank
+src/lib/trip.ts    splitTrip() — pure day-allocation engine, no I/O
 src/lib/destinations.ts  loads the catalog from Supabase, maps rows to types
 src/lib/supabase.ts      the shared Supabase client
 ```
@@ -59,8 +64,14 @@ logic testable.
 ## Database
 
 The destination catalog lives in a Supabase Postgres table. Schema and seed
-data are applied as migrations, so the database is reproducible rather than
-hand-edited. The `destinations` table has Row Level Security enabled with a
+data live in [supabase/migrations/](supabase/migrations/), so the database is
+reproducible rather than hand-edited. The first migration is a *retroactive
+baseline* — the project started life in the Supabase dashboard, and that file
+captures what existed so every later change has a recorded starting point. To
+apply them to a fresh project, paste each file into the Supabase SQL editor in
+order, or run `supabase db push` if you have the CLI linked to your project.
+
+The `destinations` table has Row Level Security enabled with a
 single policy: anyone may `SELECT`, nobody may write through the API. Writes
 happen via migrations.
 
@@ -69,13 +80,25 @@ type documents that range in a comment, but only the database can enforce it.
 
 ## Tests
 
+Two runners, split by filename suffix so they never steal each other's files:
+`*.test.ts` is Vitest, `*.spec.ts` is Playwright.
+
+```bash
+npm run test:unit      # Vitest — pure functions, no browser, milliseconds
+```
+
+The unit suite hammers the trip-splitting engine — feasibility math, day
+allocation, ordering — which is exactly why `splitTrip()` does no I/O: pure
+functions can be tested exhaustively without a database or a browser.
+
 ```bash
 npm run build          # Playwright serves the production build
 npx playwright test
 ```
 
-Five end-to-end specs cover the wizard flow, the back button, the
-no-splurges path, and that results are actually personalized. Every selector is
+Seven end-to-end specs cover the wizard flow, the back button, the
+no-splurges path, that results are actually personalized, and the
+trip splitter's happy and infeasible paths. Every selector is
 a `data-testid` planted in the components, not a CSS path that breaks when a
 class changes.
 

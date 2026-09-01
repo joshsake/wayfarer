@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { recommend } from "@/lib/matching";
-import type { Preferences, Splurge } from "@/lib/types";
+import { PREF_KEYS, parsePrefs } from "@/lib/prefs";
 
 // ---------------------------------------------------------------------------
 // The results page.
@@ -20,31 +20,19 @@ import type { Preferences, Splurge } from "@/lib/types";
 // toggling for free — accessible, testable, zero client code.
 // ---------------------------------------------------------------------------
 
-/** Parse raw query params into typed Preferences, with safe fallbacks. */
-function parsePrefs(params: {
-  [key: string]: string | string[] | undefined;
-}): Preferences {
-  const get = (key: string, fallback: string): string => {
-    const value = params[key];
-    return typeof value === "string" && value.length > 0 ? value : fallback;
-  };
-  return {
-    party: get("party", "solo") as Preferences["party"],
-    vibe: get("vibe", "mix") as Preferences["vibe"],
-    splurges: get("splurges", "")
-      .split(",")
-      .filter(Boolean) as Splurge[],
-    transit: get("transit", "car") as Preferences["transit"],
-    detail: get("detail", "essentials") as Preferences["detail"],
-  };
-}
-
 export default async function ResultsPage({
   searchParams,
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const prefs = parsePrefs(await searchParams);
+  // Forward the wizard answers so the trip splitter can weight by them.
+  const raw = await searchParams;
+  const prefs = parsePrefs(raw);
+  const passthrough = new URLSearchParams();
+  for (const key of PREF_KEYS) {
+    const value = raw[key];
+    if (typeof value === "string" && value.length > 0) passthrough.set(key, value);
+  }
   const recommendations = await recommend(prefs, 3);
   const showEverything = prefs.detail === "everything";
 
@@ -133,6 +121,13 @@ export default async function ResultsPage({
           className="rounded-full border border-stone-300 px-6 py-3 font-medium text-stone-700 transition-colors hover:bg-stone-50"
         >
           ← Adjust my answers
+        </Link>
+        <Link
+          href={`/trip?${passthrough.toString()}`}
+          data-testid="results-to-trip"
+          className="rounded-full border border-stone-300 px-6 py-3 font-medium text-stone-700 transition-colors hover:bg-stone-50"
+        >
+          Split a real trip&apos;s days →
         </Link>
         <p className="text-sm text-stone-400">
           Not quite right? Two clicks to retune.

@@ -32,6 +32,13 @@ export default function Home() {
       <p className="mt-4 text-sm text-stone-400">
         Takes about 30 seconds. Really.
       </p>
+      <Link
+        href="/trip"
+        data-testid="home-to-trip"
+        className="mt-8 text-sm font-medium text-emerald-700 transition-colors hover:text-emerald-800"
+      >
+        Already know where? Split your days →
+      </Link>
     </main>
   );
 }
