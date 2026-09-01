@@ -77,6 +77,17 @@ export function distanceKm(a: LatLng, b: LatLng): number {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
 }
 
+/** All orderings of the input (n is tiny — a trip has a handful of legs). */
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  const out: T[][] = [];
+  items.forEach((item, i) => {
+    const rest = [...items.slice(0, i), ...items.slice(i + 1)];
+    for (const p of permutations(rest)) out.push([item, ...p]);
+  });
+  return out;
+}
+
 function fail(code: TripError["code"], message: string): TripResult {
   return { ok: false, error: { code, message } };
 }
@@ -144,9 +155,53 @@ export function splitTrip(
     );
   }
 
-  // Ordering + allocation follow in the next tasks; return a placeholder
-  // single-leg plan so the exactly-fits test can pass meaningfully? No —
-  // implement fully in Tasks 7–8. For THIS task, return ok with an empty
-  // legs array; Task 7 replaces it.
-  return { ok: true, plan: { legs: [], totalDays, spareDays: totalDays - minSum - travelOverhead } };
+  const spare = totalDays - minSum - travelOverhead;
+
+  // Ordering: cheapest total flight distance among permutations honoring the
+  // pin. Candidates are generated from a name-sorted list, so ties resolve
+  // to the alphabetically-earliest route — deterministic, testable.
+  const sortedCountries = [...countries].sort((a, b) => a.country.localeCompare(b.country));
+  const candidates = permutations(sortedCountries).filter(
+    (order) => firstCountry === undefined || order[0].country === firstCountry,
+  );
+  let bestOrder = candidates[0];
+  let bestDistance = Infinity;
+  for (const order of candidates) {
+    let distance = 0;
+    for (let i = 0; i + 1 < order.length; i++) {
+      distance += distanceKm(
+        reps.get(order[i].country)!.destination,
+        reps.get(order[i + 1].country)!.destination,
+      );
+    }
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestOrder = order;
+    }
+  }
+
+  // Allocation (Task 8 refines): minimums only for now, spare unassigned.
+  const start = parseDay(startDate)!;
+  let cursor = start;
+  const legs: TripLeg[] = bestOrder.map((c, i) => {
+    const rep = reps.get(c.country)!;
+    const travelDays = i === bestOrder.length - 1 ? 2 : 1;
+    const fullDays = c.minFullDays;
+    const legStart = cursor;
+    const legEnd = cursor + (fullDays + travelDays - 1) * DAY_MS;
+    cursor = legEnd + DAY_MS;
+    return {
+      country: c.country,
+      destination: rep.destination,
+      startDate: formatDay(legStart),
+      endDate: formatDay(legEnd),
+      fullDays,
+      travelDays,
+      spareDays: 0,
+      matchScore: rep.score,
+      reasons: rep.reasons,
+    };
+  });
+
+  return { ok: true, plan: { legs, totalDays, spareDays: spare } };
 }

@@ -181,3 +181,39 @@ describe("splitTrip validation", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+describe("splitTrip ordering", () => {
+  it("pins the first country and routes the rest by distance", () => {
+    const result = splitTrip(ASIA_TRIP, PREFS, CATALOG);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Japan → Korea → Singapore heads steadily south (~5,500 km);
+      // Japan → Singapore → Korea backtracks (~9,600 km).
+      expect(result.plan.legs.map((l) => l.country)).toEqual([
+        "Japan",
+        "South Korea",
+        "Singapore",
+      ]);
+    }
+  });
+
+  it("respects a different pin even when it costs distance", () => {
+    const result = splitTrip({ ...ASIA_TRIP, firstCountry: "Singapore" }, PREFS, CATALOG);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.plan.legs[0].country).toBe("Singapore");
+  });
+
+  it("picks the best-matching destination as each country's representative", () => {
+    const osaka = makeDest({
+      id: "osaka", name: "Osaka", country: "Japan", lat: 34.6937, lng: 135.5023,
+      scores: { ...KYOTO.scores, foodScene: 99, transitQuality: 99 },
+    });
+    // PREFS splurges on food + clean transit, so Osaka outranks default-Kyoto.
+    const result = splitTrip(ASIA_TRIP, PREFS, [...CATALOG, osaka]);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const japan = result.plan.legs.find((l) => l.country === "Japan");
+      expect(japan?.destination.id).toBe("osaka");
+    }
+  });
+});
