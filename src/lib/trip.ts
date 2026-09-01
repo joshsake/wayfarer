@@ -169,7 +169,9 @@ export function splitTrip(
     return fail(
       "does-not-fit",
       `This trip is ${totalDays} days, but ${minSum} minimum full days + ` +
-        `${travelOverhead} travel days (${countries.length} arrivals + the flight home) ` +
+        `${travelOverhead} travel days (${countries.length} ${
+          countries.length === 1 ? "arrival" : "arrivals"
+        } + the flight home) ` +
         `needs ${minSum + travelOverhead}. Trim the minimums or extend the dates.`,
     );
   }

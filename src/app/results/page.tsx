@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { recommend } from "@/lib/matching";
-import { parsePrefs } from "@/lib/prefs";
+import { PREF_KEYS, parsePrefs } from "@/lib/prefs";
 
 // ---------------------------------------------------------------------------
 // The results page.
@@ -29,7 +29,7 @@ export default async function ResultsPage({
   const raw = await searchParams;
   const prefs = parsePrefs(raw);
   const passthrough = new URLSearchParams();
-  for (const key of ["party", "vibe", "splurges", "transit", "detail"]) {
+  for (const key of PREF_KEYS) {
     const value = raw[key];
     if (typeof value === "string" && value.length > 0) passthrough.set(key, value);
   }

@@ -1,5 +1,6 @@
 import TripForm from "@/components/TripForm";
 import { getDestinations } from "@/lib/destinations";
+import { PREF_KEYS } from "@/lib/prefs";
 
 // ---------------------------------------------------------------------------
 // The trip form's server half: fetch what the form needs (the list of
@@ -8,8 +9,6 @@ import { getDestinations } from "@/lib/destinations";
 // Wizard answers arrive as query params (via the /results link) and are
 // forwarded so the plan can be preference-weighted.
 // ---------------------------------------------------------------------------
-
-const PREF_KEYS = ["party", "vibe", "splurges", "transit", "detail"] as const;
 
 export default async function TripPage({
   searchParams,

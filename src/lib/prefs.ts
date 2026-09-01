@@ -5,6 +5,9 @@ import type { Preferences, Splurge } from "./types";
 // before (YAGNI), and kept the safe-fallback behavior: a hand-edited or
 // truncated URL degrades to defaults instead of crashing.
 
+/** The wizard's five answer keys — the params worth forwarding between pages. */
+export const PREF_KEYS = ["party", "vibe", "splurges", "transit", "detail"] as const;
+
 /** Parse raw query params into typed Preferences, with safe fallbacks. */
 export function parsePrefs(params: {
   [key: string]: string | string[] | undefined;

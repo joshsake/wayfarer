@@ -15,7 +15,14 @@ import { useRouter } from "next/navigation";
 
 interface CountryChoice {
   included: boolean;
-  minFullDays: number;
+  /** Kept as the raw typed string so the field can be cleared mid-edit;
+   *  coerced to a whole number (empty → 0) only at submit time. */
+  minFullDays: string;
+}
+
+/** "":"" → 0, "2.9" → 2, "-1" → 0 — the same flooring the results page applies. */
+function coerceMin(raw: string): number {
+  return Math.max(0, Math.floor(Number(raw) || 0));
 }
 
 export default function TripForm({
@@ -29,7 +36,7 @@ export default function TripForm({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [choices, setChoices] = useState<Record<string, CountryChoice>>(
-    Object.fromEntries(countries.map((c) => [c, { included: false, minFullDays: 2 }])),
+    Object.fromEntries(countries.map((c) => [c, { included: false, minFullDays: "2" }])),
   );
   const [firstCountry, setFirstCountry] = useState("");
 
@@ -44,15 +51,16 @@ export default function TripForm({
   }
 
   function setMin(country: string, raw: string) {
-    const min = Math.max(0, Number(raw) || 0);
-    setChoices({ ...choices, [country]: { ...choices[country], minFullDays: min } });
+    // Store what was typed — snapping to a number here would make the field
+    // impossible to clear and retype. Coercion happens in submit().
+    setChoices({ ...choices, [country]: { ...choices[country], minFullDays: raw } });
   }
 
   function submit() {
     const params = new URLSearchParams(prefs);
     params.set("start", startDate);
     params.set("end", endDate);
-    params.set("countries", included.map((c) => `${c}:${choices[c].minFullDays}`).join(","));
+    params.set("countries", included.map((c) => `${c}:${coerceMin(choices[c].minFullDays)}`).join(","));
     if (firstCountry) params.set("first", firstCountry);
     router.push(`/trip/results?${params.toString()}`);
   }
@@ -87,6 +95,7 @@ export default function TripForm({
             <input
               type="date"
               value={endDate}
+              min={startDate || undefined}
               onChange={(e) => setEndDate(e.target.value)}
               data-testid="trip-end"
               className="mt-1 w-full rounded-xl border-2 border-stone-200 bg-white p-3 text-stone-900"
@@ -145,6 +154,7 @@ export default function TripForm({
           <select
             value={firstCountry}
             onChange={(e) => setFirstCountry(e.target.value)}
+            aria-label="Which country to start in"
             data-testid="trip-first"
             className="mt-3 w-full rounded-xl border-2 border-stone-200 bg-white p-3 text-stone-900"
           >

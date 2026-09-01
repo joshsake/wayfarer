@@ -26,7 +26,10 @@ function parseConstraints(params: {
     .filter(Boolean)
     .map((pair) => {
       const [country, min] = pair.split(":");
-      return { country, minFullDays: Math.max(0, Math.floor(Number(min) || 0)) };
+      const n = Number(min);
+      // Number.isFinite also rejects NaN, so "Japan:Infinity" (or garbage)
+      // degrades to 0 here instead of reaching the engine.
+      return { country, minFullDays: Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0 };
     });
   const first = params["first"];
   return {
