@@ -33,13 +33,16 @@ do $$
 begin
   if not exists (
     select 1 from pg_policies
-    where schemaname = 'public' and tablename = 'destinations' and cmd = 'SELECT'
+    where schemaname = 'public' and tablename = 'destinations' and cmd in ('SELECT', 'ALL')
   ) then
     create policy "public read" on public.destinations for select using (true);
   end if;
 end $$;
 
 -- Seed (generated from the live table by scripts/generate-baseline-seed.mjs):
+-- NOTE: once 20260901000000_trip_splitter.sql has run (lat/lng NOT NULL), these
+-- INSERTs can no longer restore a deleted row — a restored row must be inserted
+-- with coordinates.
 insert into public.destinations (id, name, country, tagline, emoji, local_culture, classic_sights, hotel_quality, food_scene, experiences, transit_quality, family_friendly, walkability, daily_cost, highlights)
 values ('copenhagen', 'Copenhagen', 'Denmark', 'Design hotels, bike lanes, and effortless family days', '🚲', 80, 65, 90, 88, 75, 96, 92, 92, 280, array['Tivoli Gardens at dusk with kids', 'Smørrebrød lunch worth planning a day around', 'Harbor swim next to the opera house'])
 on conflict (id) do nothing;
