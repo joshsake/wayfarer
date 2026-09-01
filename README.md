@@ -11,6 +11,10 @@ three destinations scored against your answers — with the reasons why.
 Built with Next.js 16 (App Router), Tailwind v4, Supabase, and Playwright.
 Every push runs a production build and the Playwright suite in CI.
 
+| Five questions in | Ranked matches out — with the why |
+| --- | --- |
+| ![Wayfarer home page](docs/home.png) | ![Results page: destinations scored with match reasons](docs/results.png) |
+
 ## Getting started
 
 ```bash
