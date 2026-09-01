@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Vitest setup — runs before each unit-test file's imports.
 //
-// LEARNING NOTE: Companion to the dummy env vars in vitest.config.ts. Creating
+// LEARNING NOTE: Companion to the dummy env vars in vitest.config.mts. Creating
 // the Supabase client (which unit tests reach transitively via the matching
 // engine) also constructs a realtime client, and on Node < 22 that throws at
 // import time because there's no global WebSocket. Unit tests never open a
