@@ -17,6 +17,8 @@ const sandboxChromium = "/opt/pw-browsers/chromium";
 
 export default defineConfig({
   testDir: "./tests",
+  // Vitest owns *.test.ts (see vitest.config.ts); Playwright owns *.spec.ts.
+  testMatch: "**/*.spec.ts",
   fullyParallel: true,
   retries: 0,
   use: {
