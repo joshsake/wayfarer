@@ -120,7 +120,8 @@ export function splitTrip(
   if (countries.length === 0) {
     return fail("bad-input", "Pick at least one country to split days across.");
   }
-  // The cap keeps the permutation search below (worst case (n−1)! orders)
+  // The cap keeps the permutation search (worst case n! orders when no
+  // country is pinned first — 8! = 40,320 — or (n−1)! with a pin)
   // effectively instant — and honestly, past 8 countries the trip is all
   // airports anyway.
   if (countries.length > 8) {
