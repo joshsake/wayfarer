@@ -41,3 +41,27 @@ export function countDays(startDate: string, endDate: string): number | null {
   if (start === null || end === null || end < start) return null;
   return (end - start) / DAY_MS + 1;
 }
+
+/** A point on the globe, in decimal degrees. */
+interface LatLng {
+  lat: number;
+  lng: number;
+}
+
+/**
+ * Great-circle distance between two points, in kilometers (haversine).
+ *
+ * LEARNING NOTE: We only ever *compare* route lengths, so any monotonic
+ * distance would do — but haversine is the standard, cheap, and easy to
+ * sanity-check against real city pairs in tests.
+ */
+export function distanceKm(a: LatLng, b: LatLng): number {
+  const EARTH_RADIUS_KM = 6371;
+  const rad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
+}
