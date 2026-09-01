@@ -41,7 +41,10 @@ export default async function ResultsPage({
       <p className="text-sm font-medium uppercase tracking-widest text-emerald-700">
         Wayfarer
       </p>
-      <h1 className="mt-2 text-4xl font-semibold tracking-tight text-stone-900">
+      <h1
+        data-testid="results-heading"
+        className="mt-2 text-4xl font-semibold tracking-tight text-stone-900"
+      >
         Your kind of trip.
       </h1>
       <p className="mt-3 text-stone-500">
