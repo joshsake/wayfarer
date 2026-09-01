@@ -53,6 +53,9 @@ export interface Destination {
   };
   /** Rough daily cost in USD for a comfortable (not luxury) trip. */
   dailyCost: number;
+  /** City coordinates, used to order multi-country trips by flight distance. */
+  lat: number;
+  lng: number;
   highlights: string[]; // shown only when the user asks for "everything"
 }
 
@@ -62,3 +65,54 @@ export interface Recommendation {
   score: number; // 0–100 match percentage
   reasons: string[]; // human-friendly "why this fits you"
 }
+
+// --- Trip splitter ---------------------------------------------------------
+// Day-counting semantics (see docs/plans/2026-09-01-trip-splitter-design.md):
+// every leg's first day is a travel day (arrival) and doesn't count as
+// "full"; the trip's final day is the flight home. So a leg's full days =
+// allocated days − 1, and the final leg's = allocated days − 2.
+
+/** One country in the trip request, with its minimum full days. */
+export interface CountryConstraint {
+  country: string;
+  minFullDays: number;
+}
+
+/** The trip request: an inclusive date range plus country constraints. */
+export interface TripConstraints {
+  startDate: string; // "YYYY-MM-DD"
+  endDate: string; //   "YYYY-MM-DD", inclusive
+  countries: CountryConstraint[];
+  /** Optional: this country must be the first leg. */
+  firstCountry?: string;
+}
+
+/** One leg of a computed plan, with concrete dates. */
+export interface TripLeg {
+  country: string;
+  /** The country's best-matching destination for these preferences. */
+  destination: Destination;
+  startDate: string;
+  endDate: string; // inclusive
+  fullDays: number;
+  travelDays: number; // 1, or 2 on the final leg (arrival + flight home)
+  spareDays: number; // how many beyond-minimum days this leg received
+  matchScore: number;
+  reasons: string[];
+}
+
+export interface TripPlan {
+  legs: TripLeg[];
+  totalDays: number;
+  spareDays: number;
+}
+
+export interface TripError {
+  code: "bad-dates" | "unknown-country" | "does-not-fit";
+  message: string; // ready to render — explains the arithmetic, not just "invalid"
+}
+
+/** Result union: infeasible trips are data, not exceptions — the UI explains them. */
+export type TripResult =
+  | { ok: true; plan: TripPlan }
+  | { ok: false; error: TripError };
