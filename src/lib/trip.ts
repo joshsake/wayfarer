@@ -180,13 +180,36 @@ export function splitTrip(
     }
   }
 
-  // Allocation (Task 8 refines): minimums only for now, spare unassigned.
+  // Spare days beyond the minimums go to countries in proportion to their
+  // match scores — the "preference-weighted" half of the design.
+  //
+  // LEARNING NOTE: naive proportional shares are fractional; you can't spend
+  // 0.4 of a day in Seoul. The largest-remainder method fixes that: floor
+  // every share, then hand the leftover whole days to the largest fractional
+  // parts. Ties break toward earlier legs so the result is deterministic —
+  // nondeterministic allocation would make this function untestable.
+  const scores = bestOrder.map((c) => reps.get(c.country)!.score);
+  const totalScore = scores.reduce((sum, s) => sum + s, 0);
+  const quotas = scores.map((s) =>
+    totalScore === 0 ? spare / bestOrder.length : (spare * s) / totalScore,
+  );
+  const spareAlloc = quotas.map(Math.floor);
+  let leftover = spare - spareAlloc.reduce((sum, v) => sum + v, 0);
+  const byRemainder = quotas
+    .map((q, i) => ({ i, frac: q - Math.floor(q) }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+  for (const { i } of byRemainder) {
+    if (leftover === 0) break;
+    spareAlloc[i] += 1;
+    leftover -= 1;
+  }
+
   const start = parseDay(startDate)!;
   let cursor = start;
   const legs: TripLeg[] = bestOrder.map((c, i) => {
     const rep = reps.get(c.country)!;
     const travelDays = i === bestOrder.length - 1 ? 2 : 1;
-    const fullDays = c.minFullDays;
+    const fullDays = c.minFullDays + spareAlloc[i];
     const legStart = cursor;
     const legEnd = cursor + (fullDays + travelDays - 1) * DAY_MS;
     cursor = legEnd + DAY_MS;
@@ -197,7 +220,7 @@ export function splitTrip(
       endDate: formatDay(legEnd),
       fullDays,
       travelDays,
-      spareDays: 0,
+      spareDays: spareAlloc[i],
       matchScore: rep.score,
       reasons: rep.reasons,
     };

@@ -217,3 +217,65 @@ describe("splitTrip ordering", () => {
     }
   });
 });
+
+describe("splitTrip allocation", () => {
+  it("gives spare days to the best-matching country (largest remainder)", () => {
+    // Make Singapore's rep clearly the strongest match for PREFS.
+    const shinySingapore = makeDest({
+      ...SINGAPORE,
+      scores: { ...SINGAPORE.scores, foodScene: 99, hotelQuality: 99, transitQuality: 99 },
+    });
+    const result = splitTrip(ASIA_TRIP, PREFS, [KYOTO, SEOUL, shinySingapore]);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // 17 − 12 minimums − 4 travel = 1 spare day → Singapore.
+      const sg = result.plan.legs.find((l) => l.country === "Singapore")!;
+      expect(sg.spareDays).toBe(1);
+      expect(sg.fullDays).toBe(3);
+    }
+  });
+
+  it("breaks exact ties toward earlier legs", () => {
+    // Identical scores → identical quotas → the tie goes to leg order.
+    const result = splitTrip(ASIA_TRIP, PREFS, CATALOG);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.legs[0].spareDays).toBe(1);
+      expect(result.plan.legs[0].fullDays).toBe(9);
+    }
+  });
+
+  it("covers every calendar day exactly once, no gaps or overlaps", () => {
+    const result = splitTrip(ASIA_TRIP, PREFS, CATALOG);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const legs = result.plan.legs;
+      expect(legs[0].startDate).toBe("2026-11-13");
+      expect(legs[legs.length - 1].endDate).toBe("2026-11-29");
+      const allocated = legs.reduce((sum, l) => sum + l.fullDays + l.travelDays, 0);
+      expect(allocated).toBe(17);
+      for (let i = 0; i + 1 < legs.length; i++) {
+        const next = new Date(legs[i].endDate + "T00:00:00Z");
+        next.setUTCDate(next.getUTCDate() + 1);
+        expect(legs[i + 1].startDate).toBe(next.toISOString().slice(0, 10));
+      }
+    }
+  });
+
+  it("honors every minimum in the motivating trip", () => {
+    const result = splitTrip(ASIA_TRIP, PREFS, CATALOG);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const byCountry = Object.fromEntries(result.plan.legs.map((l) => [l.country, l]));
+      expect(byCountry["Japan"].fullDays).toBeGreaterThanOrEqual(8);
+      expect(byCountry["Singapore"].fullDays).toBeGreaterThanOrEqual(2);
+      expect(byCountry["South Korea"].fullDays).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("is deterministic", () => {
+    const a = splitTrip(ASIA_TRIP, PREFS, CATALOG);
+    const b = splitTrip(ASIA_TRIP, PREFS, CATALOG);
+    expect(a).toEqual(b);
+  });
+});
