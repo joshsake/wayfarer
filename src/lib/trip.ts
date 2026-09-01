@@ -18,6 +18,7 @@ import type {
   TripResult,
 } from "./types";
 import { rank } from "./matching";
+import { getDestinations } from "./destinations";
 
 const DAY_MS = 86_400_000;
 
@@ -227,4 +228,13 @@ export function splitTrip(
   });
 
   return { ok: true, plan: { legs, totalDays, spareDays: spare } };
+}
+
+/** Load the catalog and split the trip — the only impure part of this module. */
+export async function planTrip(
+  constraints: TripConstraints,
+  prefs: Preferences,
+): Promise<TripResult> {
+  const destinations = await getDestinations();
+  return splitTrip(constraints, prefs, destinations);
 }

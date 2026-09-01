@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { recommend } from "@/lib/matching";
-import type { Preferences, Splurge } from "@/lib/types";
+import { parsePrefs } from "@/lib/prefs";
 
 // ---------------------------------------------------------------------------
 // The results page.
@@ -19,25 +19,6 @@ import type { Preferences, Splurge } from "@/lib/types";
 // hides highlights behind a native <details> element. The browser does the
 // toggling for free — accessible, testable, zero client code.
 // ---------------------------------------------------------------------------
-
-/** Parse raw query params into typed Preferences, with safe fallbacks. */
-function parsePrefs(params: {
-  [key: string]: string | string[] | undefined;
-}): Preferences {
-  const get = (key: string, fallback: string): string => {
-    const value = params[key];
-    return typeof value === "string" && value.length > 0 ? value : fallback;
-  };
-  return {
-    party: get("party", "solo") as Preferences["party"],
-    vibe: get("vibe", "mix") as Preferences["vibe"],
-    splurges: get("splurges", "")
-      .split(",")
-      .filter(Boolean) as Splurge[],
-    transit: get("transit", "car") as Preferences["transit"],
-    detail: get("detail", "essentials") as Preferences["detail"],
-  };
-}
 
 export default async function ResultsPage({
   searchParams,
