@@ -25,7 +25,14 @@ export default async function ResultsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const prefs = parsePrefs(await searchParams);
+  // Forward the wizard answers so the trip splitter can weight by them.
+  const raw = await searchParams;
+  const prefs = parsePrefs(raw);
+  const passthrough = new URLSearchParams();
+  for (const key of ["party", "vibe", "splurges", "transit", "detail"]) {
+    const value = raw[key];
+    if (typeof value === "string" && value.length > 0) passthrough.set(key, value);
+  }
   const recommendations = await recommend(prefs, 3);
   const showEverything = prefs.detail === "everything";
 
@@ -114,6 +121,13 @@ export default async function ResultsPage({
           className="rounded-full border border-stone-300 px-6 py-3 font-medium text-stone-700 transition-colors hover:bg-stone-50"
         >
           ← Adjust my answers
+        </Link>
+        <Link
+          href={`/trip?${passthrough.toString()}`}
+          data-testid="results-to-trip"
+          className="rounded-full border border-stone-300 px-6 py-3 font-medium text-stone-700 transition-colors hover:bg-stone-50"
+        >
+          Split a real trip&apos;s days →
         </Link>
         <p className="text-sm text-stone-400">
           Not quite right? Two clicks to retune.
