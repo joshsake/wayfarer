@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import type {
+  CountryConstraint,
   Destination,
   Preferences,
   Recommendation,
@@ -117,11 +118,28 @@ export function splitTrip(
     );
   }
   if (countries.length === 0) {
-    return fail("does-not-fit", "Pick at least one country to split days across.");
+    return fail("bad-input", "Pick at least one country to split days across.");
+  }
+  // The cap keeps the permutation search below (worst case (n−1)! orders)
+  // effectively instant — and honestly, past 8 countries the trip is all
+  // airports anyway.
+  if (countries.length > 8) {
+    return fail(
+      "bad-input",
+      "That's more countries than one trip can do justice — pick 8 or fewer.",
+    );
+  }
+  for (const c of countries) {
+    if (!Number.isInteger(c.minFullDays) || c.minFullDays < 0) {
+      return fail(
+        "bad-input",
+        `The minimum for "${c.country}" must be a whole number of days, 0 or more (got ${c.minFullDays}).`,
+      );
+    }
   }
   const names = countries.map((c) => c.country);
   if (new Set(names).size !== names.length) {
-    return fail("unknown-country", "Each country can appear in the trip only once.");
+    return fail("bad-input", "Each country can appear in the trip only once.");
   }
   if (firstCountry !== undefined && !names.includes(firstCountry)) {
     return fail(
@@ -158,13 +176,24 @@ export function splitTrip(
 
   const spare = totalDays - minSum - travelOverhead;
 
-  // Ordering: cheapest total flight distance among permutations honoring the
-  // pin. Candidates are generated from a name-sorted list, so ties resolve
-  // to the alphabetically-earliest route — deterministic, testable.
+  // Ordering: cheapest total flight distance among candidate orderings.
+  // Candidates are generated from a name-sorted list, so ties resolve to the
+  // alphabetically-earliest route — deterministic, testable.
+  //
+  // LEARNING NOTE: with a pinned first country we permute only the other
+  // n−1 legs and prepend the pin — never generate all n! orders and filter.
+  // Same candidates either way, but a factor of n less work; factorials grow
+  // fast enough that at n=10 "generate then filter" costs seconds and a
+  // gigabyte of arrays that the filter immediately throws away.
   const sortedCountries = [...countries].sort((a, b) => a.country.localeCompare(b.country));
-  const candidates = permutations(sortedCountries).filter(
-    (order) => firstCountry === undefined || order[0].country === firstCountry,
-  );
+  let candidates: CountryConstraint[][];
+  if (firstCountry === undefined) {
+    candidates = permutations(sortedCountries);
+  } else {
+    const pinned = sortedCountries.find((c) => c.country === firstCountry)!;
+    const rest = sortedCountries.filter((c) => c !== pinned);
+    candidates = permutations(rest).map((order) => [pinned, ...order]);
+  }
   let bestOrder = candidates[0];
   let bestDistance = Infinity;
   for (const order of candidates) {

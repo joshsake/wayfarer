@@ -110,7 +110,7 @@ describe("splitTrip validation", () => {
   it("rejects an empty country list", () => {
     const result = splitTrip({ ...ASIA_TRIP, countries: [] }, PREFS, CATALOG);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("does-not-fit");
+    if (!result.ok) expect(result.error.code).toBe("bad-input");
   });
 
   it("rejects a country with no catalog destinations", () => {
@@ -133,7 +133,90 @@ describe("splitTrip validation", () => {
       CATALOG,
     );
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("unknown-country");
+    if (!result.ok) expect(result.error.code).toBe("bad-input");
+  });
+
+  it("rejects a negative minimum", () => {
+    const result = splitTrip(
+      {
+        ...ASIA_TRIP,
+        countries: [
+          { country: "Japan", minFullDays: -1 },
+          { country: "South Korea", minFullDays: 2 },
+          { country: "Singapore", minFullDays: 2 },
+        ],
+      },
+      PREFS,
+      CATALOG,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("bad-input");
+  });
+
+  it("rejects a fractional minimum, naming the country", () => {
+    // Fractional days would walk the date cursor off UTC midnight.
+    const result = splitTrip(
+      {
+        ...ASIA_TRIP,
+        countries: [
+          { country: "Japan", minFullDays: 8 },
+          { country: "South Korea", minFullDays: 2.5 },
+          { country: "Singapore", minFullDays: 2 },
+        ],
+      },
+      PREFS,
+      CATALOG,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("bad-input");
+      expect(result.error.message).toContain("South Korea");
+    }
+  });
+
+  it("rejects more than 8 countries before anything else runs", () => {
+    // Nine made-up countries: the cap must fire before the catalog lookup,
+    // so no fixtures are needed — and no permutation search ever starts.
+    const nine = Array.from({ length: 9 }, (_, i) => ({
+      country: `Country ${i}`,
+      minFullDays: 1,
+    }));
+    const result = splitTrip(
+      { startDate: "2026-11-01", endDate: "2026-12-31", countries: nine },
+      PREFS,
+      CATALOG,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("bad-input");
+  });
+
+  it("handles a pinned 8-country trip quickly", () => {
+    // 8 legs pinned → permute only the 7 free legs (5,040 orders), not 8!
+    // (40,320) filtered down. 8 minimums + 9 travel days = 17 = the range.
+    const bigCatalog = Array.from({ length: 8 }, (_, i) =>
+      makeDest({
+        id: `city-${i}`,
+        name: `City ${i}`,
+        country: `Country ${i}`,
+        lat: 10 + i * 5,
+        lng: 100 + i * 3,
+      }),
+    );
+    const constraints: TripConstraints = {
+      startDate: "2026-11-13",
+      endDate: "2026-11-29",
+      countries: bigCatalog.map((d) => ({ country: d.country, minFullDays: 1 })),
+      firstCountry: "Country 4",
+    };
+    const started = performance.now();
+    const result = splitTrip(constraints, PREFS, bigCatalog);
+    const elapsedMs = performance.now() - started;
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.legs).toHaveLength(8);
+      expect(result.plan.legs[0].country).toBe("Country 4");
+    }
+    expect(elapsedMs).toBeLessThan(1000);
   });
 
   it("rejects a firstCountry that isn't in the trip", () => {
@@ -277,5 +360,100 @@ describe("splitTrip allocation", () => {
     const a = splitTrip(ASIA_TRIP, PREFS, CATALOG);
     const b = splitTrip(ASIA_TRIP, PREFS, CATALOG);
     expect(a).toEqual(b);
+  });
+
+  it("plans a single-country trip as one leg spanning the whole range", () => {
+    // Nov 13–20 is 8 days; 1 arrival + flight home = 2 travel days.
+    // Minimum 4 + spare 2 (all to the only leg) = 6 full days.
+    const result = splitTrip(
+      {
+        startDate: "2026-11-13",
+        endDate: "2026-11-20",
+        countries: [{ country: "Japan", minFullDays: 4 }],
+      },
+      PREFS,
+      CATALOG,
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.legs).toHaveLength(1);
+      const leg = result.plan.legs[0];
+      expect(leg.startDate).toBe("2026-11-13");
+      expect(leg.endDate).toBe("2026-11-20");
+      expect(leg.travelDays).toBe(2);
+      expect(leg.fullDays).toBe(6);
+    }
+  });
+
+  it("splits multiple spare days by exact largest-remainder arithmetic", () => {
+    // Uniform scores make a destination's match % equal that score, so reps
+    // land at exactly 90 / 60 / 30 (see rank(): every PREFS criterion reads
+    // fields that all hold the same value).
+    //
+    // Hand-computed expectation — 17 days, minimums 4+2+2, 4 travel → spare 5.
+    // Leg order (pinned Japan, then by distance): Japan, South Korea, Singapore.
+    // Quotas: 5·90/180 = 2.5, 5·60/180 = 1.667, 5·30/180 = 0.833.
+    // Floors [2, 1, 0] spend 3; fractions .5 < .667 < .833, so the 2 leftover
+    // days go to Singapore (.833) and South Korea (.667): spare = [2, 2, 1].
+    const uniform = (v: number) => ({
+      localCulture: v, classicSights: v, hotelQuality: v, foodScene: v,
+      experiences: v, transitQuality: v, familyFriendly: v, walkability: v,
+    });
+    const catalog = [
+      makeDest({ ...KYOTO, scores: uniform(90) }),
+      makeDest({ ...SEOUL, scores: uniform(60) }),
+      makeDest({ ...SINGAPORE, scores: uniform(30) }),
+    ];
+    const result = splitTrip(
+      {
+        ...ASIA_TRIP,
+        countries: [
+          { country: "Japan", minFullDays: 4 },
+          { country: "South Korea", minFullDays: 2 },
+          { country: "Singapore", minFullDays: 2 },
+        ],
+      },
+      PREFS,
+      catalog,
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.spareDays).toBe(5);
+      expect(result.plan.legs.map((l) => l.spareDays)).toEqual([2, 2, 1]);
+      expect(result.plan.legs.map((l) => l.fullDays)).toEqual([6, 4, 3]);
+    }
+  });
+
+  it("splits spare evenly when every rep scores zero", () => {
+    // All-zero scores bottom out every PREFS criterion, so rank() yields 0
+    // for each rep and totalScore is 0 — the even-split branch. Spare 5 over
+    // 3 legs: quotas all 5/3, floors [1,1,1], and the 2 leftover days break
+    // the all-equal-fraction tie toward earlier legs: spare = [2, 2, 1].
+    const zero = {
+      localCulture: 0, classicSights: 0, hotelQuality: 0, foodScene: 0,
+      experiences: 0, transitQuality: 0, familyFriendly: 0, walkability: 0,
+    };
+    const catalog = [
+      makeDest({ ...KYOTO, scores: zero }),
+      makeDest({ ...SEOUL, scores: zero }),
+      makeDest({ ...SINGAPORE, scores: zero }),
+    ];
+    const result = splitTrip(
+      {
+        ...ASIA_TRIP,
+        countries: [
+          { country: "Japan", minFullDays: 4 },
+          { country: "South Korea", minFullDays: 2 },
+          { country: "Singapore", minFullDays: 2 },
+        ],
+      },
+      PREFS,
+      catalog,
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.legs.map((l) => l.matchScore)).toEqual([0, 0, 0]);
+      expect(result.plan.legs.map((l) => l.spareDays)).toEqual([2, 2, 1]);
+    }
   });
 });

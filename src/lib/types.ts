@@ -108,7 +108,7 @@ export interface TripPlan {
 }
 
 export interface TripError {
-  code: "bad-dates" | "unknown-country" | "does-not-fit";
+  code: "bad-dates" | "bad-input" | "unknown-country" | "does-not-fit";
   message: string; // ready to render — explains the arithmetic, not just "invalid"
 }
 
