@@ -21,6 +21,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["tests/unit/**/*.test.ts"],
+    // WebSocket stub for Node < 22 — see the note in tests/unit/setup.ts.
+    setupFiles: ["tests/unit/setup.ts"],
     env: {
       NEXT_PUBLIC_SUPABASE_URL: "http://unit-tests-never-connect.invalid",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "unit-test-dummy-key",
