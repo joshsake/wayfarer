@@ -116,6 +116,31 @@ describe("flightQueries", () => {
   it("gives a single-leg plan no flights without a home airport", () => {
     expect(flightQueries(SINGLE_LEG_PLAN)).toEqual([]);
   });
+
+  // LEARNING NOTE: If home IS the first leg's airport (you live in Kyoto and
+  // the trip starts there), a naive derivation asks Amadeus for KIX→KIX.
+  // The API rejects that with a 400 — and on a rate-limited sandbox key,
+  // even a rejected call is a call wasted. Degenerate queries must never
+  // leave this function.
+  it("skips the outbound flight when home equals the first leg's airport", () => {
+    expect(flightQueries(THREE_LEG_PLAN, "KIX")).toEqual([
+      { origin: "KIX", dest: "ICN", date: "2026-11-23" },
+      { origin: "ICN", dest: "SIN", date: "2026-11-27" },
+      { origin: "SIN", dest: "KIX", date: "2026-11-29" },
+    ]);
+  });
+
+  it("skips the return flight when home equals the last leg's airport", () => {
+    expect(flightQueries(THREE_LEG_PLAN, "SIN")).toEqual([
+      { origin: "SIN", dest: "KIX", date: "2026-11-13" },
+      { origin: "KIX", dest: "ICN", date: "2026-11-23" },
+      { origin: "ICN", dest: "SIN", date: "2026-11-27" },
+    ]);
+  });
+
+  it("returns no flights at all for an empty plan", () => {
+    expect(flightQueries({ legs: [], totalDays: 0, spareDays: 0 }, "LAX")).toEqual([]);
+  });
 });
 
 describe("normalizeOffers", () => {
@@ -187,5 +212,19 @@ describe("normalizeOffers", () => {
     const offers = normalizeOffers(mangled);
     expect(offers).toHaveLength(1);
     expect(offers[0].price).toBe("412.60");
+  });
+
+  it("drops the whole offer when a mid-journey segment is broken", () => {
+    // A 1-stop offer whose SECOND segment is missing its departure: half a
+    // journey is nonsense, so the entire offer must go — not just the leg.
+    const fixture = amadeusFixture as { data: unknown[] };
+    const oneStop = structuredClone(fixture.data[1]) as {
+      itineraries: { segments: Record<string, unknown>[] }[];
+    };
+    delete oneStop.itineraries[0].segments[1].departure;
+
+    const offers = normalizeOffers({ data: [fixture.data[0], oneStop] });
+    expect(offers).toHaveLength(1);
+    expect(offers[0].stops).toBe(0); // only the untouched nonstop survives
   });
 });

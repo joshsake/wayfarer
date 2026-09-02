@@ -25,6 +25,12 @@ const IATA = /^[A-Za-z]{3}$/;
  * An invalid home airport is ignored rather than thrown — flights are an
  * optional enhancement, and a typo in an optional field shouldn't take the
  * inter-leg flights down with it.
+ *
+ * LEARNING NOTE: A query whose origin equals its destination (home is the
+ * first leg's own airport — you live in Kyoto and the trip starts there) is
+ * never emitted. Amadeus rejects KIX→KIX with a 400, and on a rate-limited
+ * key even a rejected request burns quota, so the guard lives here at the
+ * source rather than in every caller.
  */
 export function flightQueries(plan: TripPlan, homeAirport?: string): FlightQuery[] {
   const { legs } = plan;
@@ -35,7 +41,7 @@ export function flightQueries(plan: TripPlan, homeAirport?: string): FlightQuery
 
   const queries: FlightQuery[] = [];
 
-  if (home) {
+  if (home && home !== legs[0].destination.iataCode) {
     queries.push({
       origin: home,
       dest: legs[0].destination.iataCode,
@@ -51,8 +57,8 @@ export function flightQueries(plan: TripPlan, homeAirport?: string): FlightQuery
     });
   }
 
-  if (home) {
-    const last = legs.at(-1)!;
+  const last = legs.at(-1)!;
+  if (home && home !== last.destination.iataCode) {
     queries.push({
       origin: last.destination.iataCode,
       dest: home,
