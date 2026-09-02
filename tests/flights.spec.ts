@@ -101,6 +101,24 @@ test("shows flight offers for every transition of the trip", async ({ page }) =>
   await expect(strips.first()).toContainText("1 stop");
 });
 
+test("says so plainly when a day simply has no flights", async ({ page }) => {
+  // available:true with zero offers is a REAL answer ("we looked, nothing
+  // flies that day"), distinct from available:false ("we couldn't look").
+  await page.route("**/api/flights**", (route) =>
+    route.fulfill({ json: { available: true, offers: [] } }),
+  );
+
+  await planAsiaTripFrom(page, "LAX");
+
+  await expect(page.getByTestId("trip-leg")).toHaveCount(3);
+  const legs = page.getByTestId("trip-leg");
+  await expect(legs.first()).toContainText("Japan");
+  await expect(legs.last()).toContainText("Nov 29");
+
+  await expect(page.getByText("No flights found for this day.")).toHaveCount(4);
+  await expect(page.getByTestId("flight-unavailable")).toHaveCount(0);
+});
+
 test("degrades quietly when flights are unavailable", async ({ page }) => {
   await page.route("**/api/flights**", (route) =>
     route.fulfill({ json: { available: false } }),

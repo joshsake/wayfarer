@@ -67,7 +67,13 @@ export default function FlightStrip({
       .then((json: unknown) => {
         const body = json as { available?: boolean; offers?: FlightOffer[] };
         if (body?.available === true && Array.isArray(body.offers)) {
-          setState({ status: "loaded", offers: body.offers });
+          // Belt and suspenders: normalizeOffers already guarantees every
+          // offer has ≥1 segment server-side, but this component shouldn't
+          // crash if that contract ever slips.
+          const offers = body.offers.filter(
+            (offer) => Array.isArray(offer?.segments) && offer.segments.length > 0,
+          );
+          setState({ status: "loaded", offers });
         } else {
           setState({ status: "unavailable" });
         }
@@ -96,7 +102,12 @@ export default function FlightStrip({
       </div>
 
       {state.status === "loading" && (
-        <div data-testid="flight-loading" className="mt-2 flex flex-col gap-1.5">
+        <div
+          data-testid="flight-loading"
+          role="status"
+          aria-busy="true"
+          className="mt-2 flex flex-col gap-1.5"
+        >
           <div className="h-4 animate-pulse rounded bg-stone-100" />
           <div className="h-4 w-2/3 animate-pulse rounded bg-stone-100" />
         </div>
@@ -114,12 +125,12 @@ export default function FlightStrip({
 
       {state.status === "loaded" && state.offers.length > 0 && (
         <ul className="mt-2 flex flex-col gap-1.5">
-          {state.offers.map((offer, index) => {
+          {state.offers.map((offer) => {
             const first = offer.segments[0];
             const last = offer.segments[offer.segments.length - 1];
             return (
               <li
-                key={index}
+                key={`${first.carrier}${first.flightNumber}-${first.departAt}`}
                 data-testid="flight-offer"
                 className="flex items-baseline justify-between gap-3 text-sm"
               >

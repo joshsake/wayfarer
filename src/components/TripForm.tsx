@@ -116,9 +116,13 @@ export default function TripForm({
             onChange={(e) => setHomeAirport(e.target.value.toUpperCase())}
             placeholder="LAX (optional)"
             maxLength={3}
+            pattern="[A-Za-z]{3}"
             data-testid="trip-home"
             className="mt-1 w-full rounded-xl border-2 border-stone-200 bg-white p-3 uppercase text-stone-900 placeholder:normal-case"
           />
+          <span className="mt-1 block text-xs text-stone-400">
+            3-letter airport code — we&apos;ll look up flights between your stops
+          </span>
         </label>
       </section>
 

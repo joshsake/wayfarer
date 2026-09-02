@@ -136,10 +136,10 @@ npm run build          # Playwright serves the production build
 npx playwright test
 ```
 
-Nine end-to-end specs cover the wizard flow, the back button, the
+Ten end-to-end specs cover the wizard flow, the back button, the
 no-splurges path, that results are actually personalized, the trip splitter's
-happy and infeasible paths, and the flight strips in both their offers and
-unavailable states. The flight specs stub `/api/flights` with `page.route()` —
+happy and infeasible paths, and the flight strips in their offers,
+no-flights-found, and unavailable states. The flight specs stub `/api/flights` with `page.route()` —
 CI has no Amadeus key, and live fares would make assertions flaky. Every
 selector is a `data-testid` planted in the components, not a CSS path that
 breaks when a class changes.
