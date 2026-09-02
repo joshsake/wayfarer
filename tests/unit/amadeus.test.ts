@@ -62,6 +62,65 @@ describe("searchFlights token cache", () => {
     expect(second).toHaveLength(2);
   });
 
+  it("shares one token request between concurrent searches on a cold cache", async () => {
+    const fetchMock = makeFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    // Both start before either token response lands — the FlightStrip
+    // reality, where every strip on the results page fetches at once.
+    await Promise.all([
+      searchFlights("KIX", "ICN", "2026-11-23"),
+      searchFlights("ICN", "SIN", "2026-11-27"),
+    ]);
+
+    const urls = fetchMock.mock.calls.map(([input]) => String(input));
+    expect(urls.filter((u) => u === TOKEN_URL)).toHaveLength(1);
+    expect(urls.filter((u) => u.includes("/v2/shopping/flight-offers"))).toHaveLength(2);
+  });
+
+  it("recovers after a failed token fetch instead of caching the rejection", async () => {
+    let tokenCalls = 0;
+    const impl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> =
+      async (input) => {
+        const url = String(input);
+        if (url === TOKEN_URL) {
+          tokenCalls += 1;
+          if (tokenCalls === 1) return new Response("boom", { status: 500 });
+          return new Response(
+            JSON.stringify({ access_token: "test-token", expires_in: 1799 }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify(amadeusFixture), { status: 200 });
+      };
+    vi.stubGlobal("fetch", vi.fn(impl));
+
+    await expect(searchFlights("KIX", "ICN", "2026-11-23")).rejects.toThrow(
+      "Amadeus auth failed: 500",
+    );
+    // The failure must not stick: the next call tries again and succeeds.
+    const offers = await searchFlights("KIX", "ICN", "2026-11-23");
+    expect(offers).toHaveLength(2);
+    expect(tokenCalls).toBe(2);
+  });
+
+  it("rejects loudly when the token response body is malformed", async () => {
+    const impl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> =
+      async (input) => {
+        if (String(input) === TOKEN_URL) {
+          // 200 OK but not the shape we need — no access_token at all.
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }
+        return new Response(JSON.stringify(amadeusFixture), { status: 200 });
+      };
+    vi.stubGlobal("fetch", vi.fn(impl));
+
+    // Without validation this would silently send "Bearer undefined".
+    await expect(searchFlights("KIX", "ICN", "2026-11-23")).rejects.toThrow(
+      /access_token|expires_in/,
+    );
+  });
+
   it("re-fetches the token once it has expired", async () => {
     vi.useFakeTimers(); // fakes Date.now() too, so the cache's clock is ours
     const fetchMock = makeFetchMock(1799);

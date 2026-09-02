@@ -13,6 +13,13 @@ import { amadeusConfigured, searchFlights } from "@/lib/amadeus";
 // missing key or an Amadeus failure returns `{ available: false }` with a
 // 200 — flights are optional, and the UI treats "no flights" as a quiet
 // shrug, not an error state worth breaking the page over.
+//
+// DECISION — no auth, no rate limiting, on purpose (2026-09). This endpoint
+// is open and unthrottled because the whole stack tolerates abuse cheaply:
+// it's a personal app, the key is an Amadeus SANDBOX key (worthless beyond
+// its own quota), and when that quota is exhausted the UI just degrades to
+// "unavailable". Revisit before ever pointing this at a production Amadeus
+// key — that's the moment this route needs throttling or an auth check.
 // ---------------------------------------------------------------------------
 
 const IATA = /^[A-Z]{3}$/;

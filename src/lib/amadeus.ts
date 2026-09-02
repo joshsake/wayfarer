@@ -29,9 +29,29 @@ export function amadeusConfigured(): boolean {
 }
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
+let tokenPromise: Promise<string> | null = null;
 
+// LEARNING NOTE: Two caches, two jobs. `cachedToken` is a VALUE cache — it
+// answers "do we already hold a live token?". `tokenPromise` is a PROMISE
+// cache — it answers "is someone already fetching one RIGHT NOW?". Value
+// caching alone has a thundering-herd hole: when several FlightStrips fire
+// concurrently on a cold cache, each checks `cachedToken` (still null,
+// because the first fetch hasn't resolved), and each requests its own token.
+// Caching the in-flight promise lets the followers await the leader's fetch
+// instead. The promise cache is cleared once the fetch settles: on success
+// the value cache takes over; on failure the next caller retries fresh
+// rather than awaiting a cached rejection forever.
 async function getToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) return cachedToken.token;
+  if (!tokenPromise) {
+    tokenPromise = fetchToken().finally(() => {
+      tokenPromise = null;
+    });
+  }
+  return tokenPromise;
+}
+
+async function fetchToken(): Promise<string> {
   const res = await fetch(`${BASE}/v1/security/oauth2/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -43,14 +63,20 @@ async function getToken(): Promise<string> {
   });
   if (!res.ok) throw new Error(`Amadeus auth failed: ${res.status}`);
   const json = await res.json();
+  // A 200 with the wrong shape must fail loudly here, in the server log —
+  // not silently become an `Authorization: Bearer undefined` header.
+  if (typeof json.access_token !== "string" || typeof json.expires_in !== "number") {
+    throw new Error("Amadeus auth response missing access_token/expires_in");
+  }
   // Refresh 60s early so a token never expires mid-request.
   cachedToken = { token: json.access_token, expiresAt: Date.now() + (json.expires_in - 60) * 1000 };
   return cachedToken.token;
 }
 
-/** Test hook: forget the cached token. */
+/** Test hook: forget the cached token and any fetch in flight. */
 export function resetTokenCache(): void {
   cachedToken = null;
+  tokenPromise = null;
 }
 
 export async function searchFlights(origin: string, dest: string, date: string): Promise<FlightOffer[]> {
