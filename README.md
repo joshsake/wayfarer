@@ -40,9 +40,13 @@ src/app/plan       the five-question wizard (client component)
 src/app/results    scores and renders matches (server component)
 src/app/trip       the trip-splitter form (client component)
 src/app/trip/results  runs the split and renders the legs (server component)
+src/app/api/flights   route handler — proxies Amadeus so the key stays server-side
+src/components/FlightStrip.tsx  one transition's flight offers (client component)
 src/lib/types.ts   the domain types everything else agrees on
 src/lib/matching.ts  rank() — pure scoring; recommend() — fetch + rank
 src/lib/trip.ts    splitTrip() — pure day-allocation engine, no I/O
+src/lib/flights.ts   flightQueries() + normalizeOffers() — pure, no network
+src/lib/amadeus.ts   server-only Amadeus OAuth client
 src/lib/destinations.ts  loads the catalog from Supabase, maps rows to types
 src/lib/supabase.ts      the shared Supabase client
 ```
@@ -53,7 +57,10 @@ Two design choices worth knowing about:
 the server, so it queries Supabase directly rather than calling an internal API
 route. An API route would mean the server making an HTTP request to itself to
 reach a database it can already talk to. Route handlers earn their place when a
-*browser* or an external caller needs the data.
+*browser* or an external caller needs the data — and `/api/flights` is exactly
+that exception: the browser fetches flight offers after the page renders, and
+the Amadeus credentials must never leave the server (see
+[Flights](#flights-optional) below).
 
 **The scoring algorithm is pure.** `rank(prefs, destinations)` takes the
 catalog as an argument and does no I/O, so it can be unit-tested with a handful
@@ -78,6 +85,39 @@ happen via migrations.
 Score columns carry `CHECK (… between 0 and 100)` constraints — the TypeScript
 type documents that range in a comment, but only the database can enforce it.
 
+## Flights (optional)
+
+The trip plan can show real flight offers for every transition — home to first
+stop, between legs, last stop to home — powered by the
+[Amadeus Self-Service test API](https://developers.amadeus.com). The feature is
+strictly optional: without credentials the plan renders exactly the same, and
+each flight strip quietly reports that flights are unavailable.
+
+To turn it on, add to `.env.local`:
+
+```bash
+AMADEUS_CLIENT_ID=...       # from your Amadeus Self-Service workspace
+AMADEUS_CLIENT_SECRET=...
+```
+
+Neither variable carries the `NEXT_PUBLIC_` prefix, on purpose: the client
+secret is a real credential, so it must never reach the browser bundle. The
+browser instead calls our own `/api/flights` route handler, which holds the
+secret server-side and talks to Amadeus on its behalf.
+
+Two caveats worth knowing:
+
+**The prices are test data.** The Amadeus *test* environment serves cached and
+synthetic fares — close enough to be interesting, not bookable reality. The UI
+labels them with a "test data" badge for exactly that reason.
+
+**The endpoint is deliberately unthrottled.** `/api/flights` has no auth and no
+rate limiting, a documented decision (see the note in
+`src/app/api/flights/route.ts`): it's a personal app behind a sandbox key whose
+only value is its own quota, and exhausting that quota just degrades the UI to
+"unavailable". Point it at a production Amadeus key and that decision must be
+revisited first.
+
 ## Tests
 
 Two runners, split by filename suffix so they never steal each other's files:
@@ -96,11 +136,13 @@ npm run build          # Playwright serves the production build
 npx playwright test
 ```
 
-Seven end-to-end specs cover the wizard flow, the back button, the
-no-splurges path, that results are actually personalized, and the
-trip splitter's happy and infeasible paths. Every selector is
-a `data-testid` planted in the components, not a CSS path that breaks when a
-class changes.
+Nine end-to-end specs cover the wizard flow, the back button, the
+no-splurges path, that results are actually personalized, the trip splitter's
+happy and infeasible paths, and the flight strips in both their offers and
+unavailable states. The flight specs stub `/api/flights` with `page.route()` —
+CI has no Amadeus key, and live fares would make assertions flaky. Every
+selector is a `data-testid` planted in the components, not a CSS path that
+breaks when a class changes.
 
 ## Deployment
 
