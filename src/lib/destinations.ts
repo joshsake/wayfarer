@@ -40,6 +40,7 @@ interface DestinationRow {
   family_friendly: number;
   walkability: number;
   daily_cost: number;
+  iata_code: string;
   lat: number;
   lng: number;
   highlights: string[];
@@ -64,6 +65,7 @@ function toDestination(row: DestinationRow): Destination {
       walkability: row.walkability,
     },
     dailyCost: row.daily_cost,
+    iataCode: row.iata_code,
     lat: row.lat,
     lng: row.lng,
     highlights: row.highlights,
@@ -86,7 +88,7 @@ export const getDestinations = cache(async (): Promise<Destination[]> => {
   const { data, error } = await supabase
     .from("destinations")
     .select(
-      "id, name, country, tagline, emoji, local_culture, classic_sights, hotel_quality, food_scene, experiences, transit_quality, family_friendly, walkability, daily_cost, highlights, lat, lng",
+      "id, name, country, tagline, emoji, local_culture, classic_sights, hotel_quality, food_scene, experiences, transit_quality, family_friendly, walkability, daily_cost, iata_code, highlights, lat, lng",
     )
     .order("id");
 
