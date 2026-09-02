@@ -39,6 +39,16 @@ export default function Home() {
       >
         Already know where? Split your days →
       </Link>
+      <blockquote className="mt-16 max-w-md border-t border-stone-200 pt-8">
+        <p className="text-sm italic leading-relaxed text-stone-500">
+          {
+            "“If I’m an advocate for anything, it’s to move. As far as you can, as much as you can. Across the ocean, or simply across the river. The extent to which you can walk in someone else’s shoes or at least eat their food, it’s a plus for everybody. Open your mind, get up off the couch, move.”"
+          }
+        </p>
+        <footer className="mt-3 text-sm font-medium text-stone-400">
+          — Anthony Bourdain
+        </footer>
+      </blockquote>
     </main>
   );
 }
