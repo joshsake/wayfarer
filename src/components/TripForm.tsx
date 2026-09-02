@@ -39,6 +39,9 @@ export default function TripForm({
     Object.fromEntries(countries.map((c) => [c, { included: false, minFullDays: "2" }])),
   );
   const [firstCountry, setFirstCountry] = useState("");
+  // Uppercased eagerly, unlike the minimums (kept raw): IATA codes have one
+  // canonical form, so snapping "lax" → "LAX" as you type loses nothing.
+  const [homeAirport, setHomeAirport] = useState("");
 
   const included = countries.filter((c) => choices[c].included);
   const canSubmit = startDate !== "" && endDate !== "" && included.length > 0;
@@ -62,6 +65,9 @@ export default function TripForm({
     params.set("end", endDate);
     params.set("countries", included.map((c) => `${c}:${coerceMin(choices[c].minFullDays)}`).join(","));
     if (firstCountry) params.set("first", firstCountry);
+    // Optional field, strict gate: anything short of a full 3-letter code is
+    // treated as "not provided" — a half-typed "LA" shouldn't poison the URL.
+    if (/^[A-Z]{3}$/.test(homeAirport)) params.set("from", homeAirport);
     router.push(`/trip/results?${params.toString()}`);
   }
 
@@ -102,6 +108,18 @@ export default function TripForm({
             />
           </label>
         </div>
+        <label className="mt-3 block text-sm text-stone-500">
+          Flying from
+          <input
+            type="text"
+            value={homeAirport}
+            onChange={(e) => setHomeAirport(e.target.value.toUpperCase())}
+            placeholder="LAX (optional)"
+            maxLength={3}
+            data-testid="trip-home"
+            className="mt-1 w-full rounded-xl border-2 border-stone-200 bg-white p-3 uppercase text-stone-900 placeholder:normal-case"
+          />
+        </label>
       </section>
 
       <section className="mt-8">

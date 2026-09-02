@@ -1,7 +1,9 @@
 import Link from "next/link";
+import FlightStrip from "@/components/FlightStrip";
 import { planTrip } from "@/lib/trip";
+import { flightQueries } from "@/lib/flights";
 import { parsePrefs } from "@/lib/prefs";
-import type { TripConstraints } from "@/lib/types";
+import type { FlightQuery, TripConstraints, TripLeg } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // The trip plan, rendered. Server Component, same shape as /results: parse
@@ -40,6 +42,41 @@ function parseConstraints(params: {
   };
 }
 
+/** The optional home airport: a valid 3-letter code or nothing at all. */
+function parseHomeAirport(params: {
+  [key: string]: string | string[] | undefined;
+}): string | undefined {
+  const raw = params["from"];
+  if (typeof raw !== "string") return undefined;
+  const code = raw.toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? code : undefined;
+}
+
+// LEARNING NOTE: Strips are matched to legs by (destination airport, arrival
+// date) rather than by position in the queries array. Blind indexing
+// (queries[i] = leg i's inbound) breaks in the edge case flightQueries
+// deliberately creates: when home IS the first leg's airport, no outbound
+// query is emitted and every index shifts by one. Matching on what a query
+// actually says makes the wiring immune to which optional queries exist.
+// The pairs are unique — legs never share an airport-and-arrival-day.
+
+/** The flight that lands you at this leg, if the plan implies one. */
+function inboundFor(leg: TripLeg, queries: FlightQuery[]): FlightQuery | undefined {
+  return queries.find(
+    (q) => q.dest === leg.destination.iataCode && q.date === leg.startDate,
+  );
+}
+
+/** The flight home from the last leg, if a home airport was given. */
+function homeReturn(
+  lastLeg: TripLeg,
+  home: string | undefined,
+  queries: FlightQuery[],
+): FlightQuery | undefined {
+  if (!home) return undefined;
+  return queries.find((q) => q.dest === home && q.date === lastLeg.endDate);
+}
+
 /** "2026-11-13" → "Nov 13" (UTC-pinned; see the trip module's date notes). */
 function shortDate(iso: string): string {
   return new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", {
@@ -58,6 +95,9 @@ export default async function TripResultsPage({
   const constraints = parseConstraints(params);
   const prefs = parsePrefs(params);
   const result = constraints ? await planTrip(constraints, prefs) : null;
+
+  const home = parseHomeAirport(params);
+  const queries = result?.ok ? flightQueries(result.plan, home) : [];
 
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-14">
@@ -105,7 +145,11 @@ export default async function TripResultsPage({
           </p>
 
           <ol className="mt-10 flex flex-col gap-6">
-            {result.plan.legs.map((leg, index) => (
+            {result.plan.legs.map((leg, index) => {
+              const inbound = inboundFor(leg, queries);
+              const isLast = index === result.plan.legs.length - 1;
+              const flightHome = isLast ? homeReturn(leg, home, queries) : undefined;
+              return (
               <li
                 key={leg.country}
                 data-testid="trip-leg"
@@ -155,8 +199,12 @@ export default async function TripResultsPage({
                     ))}
                   </ul>
                 )}
+
+                {inbound && <FlightStrip query={inbound} label="Getting there" />}
+                {flightHome && <FlightStrip query={flightHome} label="Heading home" />}
               </li>
-            ))}
+              );
+            })}
           </ol>
 
           <div className="mt-10 flex items-center gap-6">
