@@ -21,6 +21,7 @@ function makeDest(
       walkability: 50,
     },
     dailyCost: 150,
+    iataCode: "XXX", // default so tests that don't care about flights stay terse
     highlights: [],
     ...overrides,
   };

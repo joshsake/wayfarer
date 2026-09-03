@@ -53,6 +53,8 @@ export interface Destination {
   };
   /** Rough daily cost in USD for a comfortable (not luxury) trip. */
   dailyCost: number;
+  /** Nearest major airport, as a 3-letter IATA code (e.g. "KIX" for Kyoto). */
+  iataCode: string;
   /** City coordinates, used to order multi-country trips by flight distance. */
   lat: number;
   lng: number;
@@ -116,3 +118,29 @@ export interface TripError {
 export type TripResult =
   | { ok: true; plan: TripPlan }
   | { ok: false; error: TripError };
+
+// --- Flights ---------------------------------------------------------------
+
+/** One flight search: where from, where to, on what day. */
+export interface FlightQuery {
+  origin: string; // IATA
+  dest: string; //   IATA
+  date: string; //   "YYYY-MM-DD"
+}
+
+export interface FlightSegment {
+  from: string;
+  to: string;
+  departAt: string; // ISO datetime, local to the airport
+  arriveAt: string;
+  carrier: string; //  2-letter airline code
+  flightNumber: string;
+}
+
+export interface FlightOffer {
+  price: string; //    e.g. "412.60" — string, exactly as the API quotes it
+  currency: string;
+  stops: number;
+  duration: string; // ISO 8601 duration, e.g. "PT7H25M"
+  segments: FlightSegment[];
+}

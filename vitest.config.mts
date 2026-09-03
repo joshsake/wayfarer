@@ -16,6 +16,15 @@ import { defineConfig } from "vitest/config";
 // connection — dummy values satisfy the startup check without touching the
 // network. If a unit test ever actually queries, it fails loudly on this
 // invalid URL, which is exactly what we want.
+//
+// LEARNING NOTE: The `server-only` alias. src/lib/duffel.ts starts with
+// `import "server-only"` so Next.js refuses to bundle it for the browser.
+// Next handles that import itself, but Vitest is plain Node: it would load
+// the real npm package, whose entry point simply throws ("cannot be imported
+// from a Client Component") because Node isn't a React server bundle either.
+// Pointing the bare specifier at an empty stub keeps the guard in the source
+// and out of the test run. Only this one name is aliased — nothing else in
+// node_modules is touched.
 // ---------------------------------------------------------------------------
 
 export default defineConfig({
@@ -29,6 +38,9 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "server-only": fileURLToPath(new URL("./tests/unit/server-only.stub.ts", import.meta.url)),
+    },
   },
 });

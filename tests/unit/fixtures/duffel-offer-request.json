@@ -1,0 +1,393 @@
+{
+  "data": {
+    "id": "orq_0000AwUnitFixture0001",
+    "live_mode": false,
+    "created_at": "2026-09-03T15:00:00.000000Z",
+    "cabin_class": "economy",
+    "passengers": [{ "id": "pas_0000AwUnitFixture0001", "type": "adult" }],
+    "slices": [
+      {
+        "origin": {
+          "type": "airport",
+          "iata_code": "KIX",
+          "name": "Kansai International Airport",
+          "iata_city_code": "OSA",
+          "time_zone": "Asia/Tokyo"
+        },
+        "destination": {
+          "type": "airport",
+          "iata_code": "ICN",
+          "name": "Incheon International Airport",
+          "iata_city_code": "SEL",
+          "time_zone": "Asia/Seoul"
+        },
+        "departure_date": "2026-11-23"
+      }
+    ],
+    "offers": [
+      {
+        "id": "off_0000AwUnitFixtureKE724",
+        "live_mode": false,
+        "created_at": "2026-09-03T15:00:01.000000Z",
+        "expires_at": "2026-09-03T15:30:01.000000Z",
+        "total_amount": "412.60",
+        "total_currency": "USD",
+        "base_amount": "358.00",
+        "base_currency": "USD",
+        "tax_amount": "54.60",
+        "tax_currency": "USD",
+        "total_emissions_kg": "78",
+        "partial": false,
+        "passenger_identity_documents_required": true,
+        "owner": { "id": "arl_0000AwKE", "iata_code": "KE", "name": "Korean Air" },
+        "passengers": [{ "id": "pas_0000AwUnitFixture0001", "type": "adult" }],
+        "conditions": {
+          "refund_before_departure": { "allowed": false, "penalty_amount": null, "penalty_currency": null },
+          "change_before_departure": { "allowed": true, "penalty_amount": "80.00", "penalty_currency": "USD" }
+        },
+        "payment_requirements": {
+          "requires_instant_payment": false,
+          "price_guarantee_expires_at": "2026-09-04T15:00:01.000000Z",
+          "payment_required_by": "2026-09-05T15:00:01.000000Z"
+        },
+        "slices": [
+          {
+            "id": "sli_0000AwUnitFixtureKE",
+            "origin_type": "airport",
+            "destination_type": "airport",
+            "origin": { "type": "airport", "iata_code": "KIX", "name": "Kansai International Airport", "time_zone": "Asia/Tokyo" },
+            "destination": { "type": "airport", "iata_code": "ICN", "name": "Incheon International Airport", "time_zone": "Asia/Seoul" },
+            "duration": "PT1H55M",
+            "fare_brand_name": "Economy Standard",
+            "segments": [
+              {
+                "id": "seg_0000AwUnitFixtureKE724",
+                "origin": { "type": "airport", "iata_code": "KIX", "name": "Kansai International Airport", "time_zone": "Asia/Tokyo" },
+                "destination": { "type": "airport", "iata_code": "ICN", "name": "Incheon International Airport", "time_zone": "Asia/Seoul" },
+                "origin_terminal": "1",
+                "destination_terminal": "2",
+                "departing_at": "2026-11-23T11:00:00",
+                "arriving_at": "2026-11-23T12:55:00",
+                "duration": "PT1H55M",
+                "distance": "525.4",
+                "marketing_carrier": { "id": "arl_0000AwKE", "iata_code": "KE", "name": "Korean Air" },
+                "marketing_carrier_flight_number": "724",
+                "operating_carrier": { "id": "arl_0000AwKE", "iata_code": "KE", "name": "Korean Air" },
+                "operating_carrier_flight_number": "724",
+                "aircraft": { "id": "arc_0000Aw73J", "iata_code": "73J", "name": "Boeing 737-900" },
+                "passengers": [
+                  {
+                    "passenger_id": "pas_0000AwUnitFixture0001",
+                    "cabin_class": "economy",
+                    "cabin_class_marketing_name": "Economy",
+                    "baggages": [{ "type": "checked", "quantity": 1 }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "off_0000AwUnitFixtureMUPVG",
+        "live_mode": false,
+        "created_at": "2026-09-03T15:00:01.000000Z",
+        "expires_at": "2026-09-03T15:30:01.000000Z",
+        "total_amount": "298.40",
+        "total_currency": "USD",
+        "base_amount": "236.00",
+        "base_currency": "USD",
+        "tax_amount": "62.40",
+        "tax_currency": "USD",
+        "total_emissions_kg": "141",
+        "partial": false,
+        "passenger_identity_documents_required": true,
+        "owner": { "id": "arl_0000AwMU", "iata_code": "MU", "name": "China Eastern Airlines" },
+        "passengers": [{ "id": "pas_0000AwUnitFixture0001", "type": "adult" }],
+        "conditions": {
+          "refund_before_departure": { "allowed": false, "penalty_amount": null, "penalty_currency": null },
+          "change_before_departure": { "allowed": false, "penalty_amount": null, "penalty_currency": null }
+        },
+        "payment_requirements": {
+          "requires_instant_payment": true,
+          "price_guarantee_expires_at": null,
+          "payment_required_by": null
+        },
+        "slices": [
+          {
+            "id": "sli_0000AwUnitFixtureMU",
+            "origin_type": "airport",
+            "destination_type": "airport",
+            "origin": { "type": "airport", "iata_code": "KIX", "name": "Kansai International Airport", "time_zone": "Asia/Tokyo" },
+            "destination": { "type": "airport", "iata_code": "ICN", "name": "Incheon International Airport", "time_zone": "Asia/Seoul" },
+            "duration": "PT7H25M",
+            "fare_brand_name": "Economy Basic",
+            "segments": [
+              {
+                "id": "seg_0000AwUnitFixtureMU516",
+                "origin": { "type": "airport", "iata_code": "KIX", "name": "Kansai International Airport", "time_zone": "Asia/Tokyo" },
+                "destination": { "type": "airport", "iata_code": "PVG", "name": "Shanghai Pudong International Airport", "time_zone": "Asia/Shanghai" },
+                "origin_terminal": "1",
+                "destination_terminal": "1",
+                "departing_at": "2026-11-23T09:20:00",
+                "arriving_at": "2026-11-23T11:05:00",
+                "duration": "PT2H45M",
+                "distance": "1364.0",
+                "marketing_carrier": { "id": "arl_0000AwMU", "iata_code": "MU", "name": "China Eastern Airlines" },
+                "marketing_carrier_flight_number": "516",
+                "operating_carrier": { "id": "arl_0000AwMU", "iata_code": "MU", "name": "China Eastern Airlines" },
+                "operating_carrier_flight_number": "516",
+                "aircraft": { "id": "arc_0000Aw320", "iata_code": "320", "name": "Airbus A320" },
+                "passengers": [
+                  {
+                    "passenger_id": "pas_0000AwUnitFixture0001",
+                    "cabin_class": "economy",
+                    "cabin_class_marketing_name": "Economy",
+                    "baggages": [{ "type": "checked", "quantity": 1 }]
+                  }
+                ]
+              },
+              {
+                "id": "seg_0000AwUnitFixtureMU5041",
+                "origin": { "type": "airport", "iata_code": "PVG", "name": "Shanghai Pudong International Airport", "time_zone": "Asia/Shanghai" },
+                "destination": { "type": "airport", "iata_code": "ICN", "name": "Incheon International Airport", "time_zone": "Asia/Seoul" },
+                "origin_terminal": "1",
+                "destination_terminal": "1",
+                "departing_at": "2026-11-23T13:50:00",
+                "arriving_at": "2026-11-23T16:45:00",
+                "duration": "PT1H55M",
+                "distance": "866.3",
+                "marketing_carrier": { "id": "arl_0000AwMU", "iata_code": "MU", "name": "China Eastern Airlines" },
+                "marketing_carrier_flight_number": "5041",
+                "operating_carrier": { "id": "arl_0000AwMU", "iata_code": "MU", "name": "China Eastern Airlines" },
+                "operating_carrier_flight_number": "5041",
+                "aircraft": { "id": "arc_0000Aw32L", "iata_code": "32L", "name": "Airbus A321neo" },
+                "passengers": [
+                  {
+                    "passenger_id": "pas_0000AwUnitFixture0001",
+                    "cabin_class": "economy",
+                    "cabin_class_marketing_name": "Economy",
+                    "baggages": [{ "type": "checked", "quantity": 1 }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "off_0000AwUnitFixtureOZ111",
+        "live_mode": false,
+        "created_at": "2026-09-03T15:00:01.000000Z",
+        "expires_at": "2026-09-03T15:30:01.000000Z",
+        "total_amount": "550.00",
+        "total_currency": "USD",
+        "base_amount": "490.00",
+        "base_currency": "USD",
+        "tax_amount": "60.00",
+        "tax_currency": "USD",
+        "total_emissions_kg": "80",
+        "partial": false,
+        "passenger_identity_documents_required": true,
+        "owner": { "id": "arl_0000AwOZ", "iata_code": "OZ", "name": "Asiana Airlines" },
+        "passengers": [{ "id": "pas_0000AwUnitFixture0001", "type": "adult" }],
+        "conditions": {
+          "refund_before_departure": { "allowed": true, "penalty_amount": "50.00", "penalty_currency": "USD" },
+          "change_before_departure": { "allowed": true, "penalty_amount": "0.00", "penalty_currency": "USD" }
+        },
+        "payment_requirements": {
+          "requires_instant_payment": false,
+          "price_guarantee_expires_at": "2026-09-04T15:00:01.000000Z",
+          "payment_required_by": "2026-09-05T15:00:01.000000Z"
+        },
+        "slices": [
+          {
+            "id": "sli_0000AwUnitFixtureOZ",
+            "origin_type": "airport",
+            "destination_type": "airport",
+            "origin": { "type": "airport", "iata_code": "KIX", "name": "Kansai International Airport", "time_zone": "Asia/Tokyo" },
+            "destination": { "type": "airport", "iata_code": "ICN", "name": "Incheon International Airport", "time_zone": "Asia/Seoul" },
+            "duration": "PT2H5M",
+            "fare_brand_name": "Economy Flex",
+            "segments": [
+              {
+                "id": "seg_0000AwUnitFixtureOZ111",
+                "origin": { "type": "airport", "iata_code": "KIX", "name": "Kansai International Airport", "time_zone": "Asia/Tokyo" },
+                "destination": { "type": "airport", "iata_code": "ICN", "name": "Incheon International Airport", "time_zone": "Asia/Seoul" },
+                "origin_terminal": "1",
+                "destination_terminal": "1",
+                "departing_at": "2026-11-23T14:30:00",
+                "arriving_at": "2026-11-23T16:35:00",
+                "duration": "PT2H5M",
+                "distance": "525.4",
+                "marketing_carrier": { "id": "arl_0000AwOZ", "iata_code": "OZ", "name": "Asiana Airlines" },
+                "marketing_carrier_flight_number": "111",
+                "operating_carrier": { "id": "arl_0000AwOZ", "iata_code": "OZ", "name": "Asiana Airlines" },
+                "operating_carrier_flight_number": "111",
+                "aircraft": { "id": "arc_0000Aw333", "iata_code": "333", "name": "Airbus A330-300" },
+                "passengers": [
+                  {
+                    "passenger_id": "pas_0000AwUnitFixture0001",
+                    "cabin_class": "economy",
+                    "cabin_class_marketing_name": "Economy",
+                    "baggages": [{ "type": "checked", "quantity": 2 }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "off_0000AwUnitFixtureCITPE",
+        "live_mode": false,
+        "created_at": "2026-09-03T15:00:01.000000Z",
+        "expires_at": "2026-09-03T15:30:01.000000Z",
+        "total_amount": "275.10",
+        "total_currency": "USD",
+        "base_amount": "218.00",
+        "base_currency": "USD",
+        "tax_amount": "57.10",
+        "tax_currency": "USD",
+        "total_emissions_kg": "163",
+        "partial": false,
+        "passenger_identity_documents_required": true,
+        "owner": { "id": "arl_0000AwCI", "iata_code": "CI", "name": "China Airlines" },
+        "passengers": [{ "id": "pas_0000AwUnitFixture0001", "type": "adult" }],
+        "conditions": {
+          "refund_before_departure": { "allowed": false, "penalty_amount": null, "penalty_currency": null },
+          "change_before_departure": { "allowed": true, "penalty_amount": "60.00", "penalty_currency": "USD" }
+        },
+        "payment_requirements": {
+          "requires_instant_payment": true,
+          "price_guarantee_expires_at": null,
+          "payment_required_by": null
+        },
+        "slices": [
+          {
+            "id": "sli_0000AwUnitFixtureCI",
+            "origin_type": "airport",
+            "destination_type": "airport",
+            "origin": { "type": "airport", "iata_code": "KIX", "name": "Kansai International Airport", "time_zone": "Asia/Tokyo" },
+            "destination": { "type": "airport", "iata_code": "ICN", "name": "Incheon International Airport", "time_zone": "Asia/Seoul" },
+            "duration": "PT8H25M",
+            "fare_brand_name": "Economy Basic",
+            "segments": [
+              {
+                "id": "seg_0000AwUnitFixtureCI157",
+                "origin": { "type": "airport", "iata_code": "KIX", "name": "Kansai International Airport", "time_zone": "Asia/Tokyo" },
+                "destination": { "type": "airport", "iata_code": "TPE", "name": "Taiwan Taoyuan International Airport", "time_zone": "Asia/Taipei" },
+                "origin_terminal": "1",
+                "destination_terminal": "2",
+                "departing_at": "2026-11-23T10:15:00",
+                "arriving_at": "2026-11-23T12:20:00",
+                "duration": "PT3H5M",
+                "distance": "1707.2",
+                "marketing_carrier": { "id": "arl_0000AwCI", "iata_code": "CI", "name": "China Airlines" },
+                "marketing_carrier_flight_number": "157",
+                "operating_carrier": { "id": "arl_0000AwCI", "iata_code": "CI", "name": "China Airlines" },
+                "operating_carrier_flight_number": "157",
+                "aircraft": { "id": "arc_0000Aw333", "iata_code": "333", "name": "Airbus A330-300" },
+                "passengers": [
+                  {
+                    "passenger_id": "pas_0000AwUnitFixture0001",
+                    "cabin_class": "economy",
+                    "cabin_class_marketing_name": "Economy",
+                    "baggages": [{ "type": "checked", "quantity": 1 }]
+                  }
+                ]
+              },
+              {
+                "id": "seg_0000AwUnitFixtureCI160",
+                "origin": { "type": "airport", "iata_code": "TPE", "name": "Taiwan Taoyuan International Airport", "time_zone": "Asia/Taipei" },
+                "destination": { "type": "airport", "iata_code": "ICN", "name": "Incheon International Airport", "time_zone": "Asia/Seoul" },
+                "origin_terminal": "2",
+                "destination_terminal": "1",
+                "departing_at": "2026-11-23T14:10:00",
+                "arriving_at": "2026-11-23T17:40:00",
+                "duration": "PT2H30M",
+                "distance": "1481.9",
+                "marketing_carrier": { "id": "arl_0000AwCI", "iata_code": "CI", "name": "China Airlines" },
+                "marketing_carrier_flight_number": "160",
+                "operating_carrier": { "id": "arl_0000AwCI", "iata_code": "CI", "name": "China Airlines" },
+                "operating_carrier_flight_number": "160",
+                "aircraft": { "id": "arc_0000Aw333", "iata_code": "333", "name": "Airbus A330-300" },
+                "passengers": [
+                  {
+                    "passenger_id": "pas_0000AwUnitFixture0001",
+                    "cabin_class": "economy",
+                    "cabin_class_marketing_name": "Economy",
+                    "baggages": [{ "type": "checked", "quantity": 1 }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "off_0000AwUnitFixtureKE724B",
+        "live_mode": false,
+        "created_at": "2026-09-03T15:00:01.000000Z",
+        "expires_at": "2026-09-03T15:30:01.000000Z",
+        "total_amount": "389.00",
+        "total_currency": "USD",
+        "base_amount": "340.00",
+        "base_currency": "USD",
+        "tax_amount": "49.00",
+        "tax_currency": "USD",
+        "total_emissions_kg": "78",
+        "partial": false,
+        "passenger_identity_documents_required": true,
+        "owner": { "id": "arl_0000AwKE", "iata_code": "KE", "name": "Korean Air" },
+        "passengers": [{ "id": "pas_0000AwUnitFixture0001", "type": "adult" }],
+        "conditions": {
+          "refund_before_departure": { "allowed": false, "penalty_amount": null, "penalty_currency": null },
+          "change_before_departure": { "allowed": false, "penalty_amount": null, "penalty_currency": null }
+        },
+        "payment_requirements": {
+          "requires_instant_payment": true,
+          "price_guarantee_expires_at": null,
+          "payment_required_by": null
+        },
+        "slices": [
+          {
+            "id": "sli_0000AwUnitFixtureKEB",
+            "origin_type": "airport",
+            "destination_type": "airport",
+            "origin": { "type": "airport", "iata_code": "KIX", "name": "Kansai International Airport", "time_zone": "Asia/Tokyo" },
+            "destination": { "type": "airport", "iata_code": "ICN", "name": "Incheon International Airport", "time_zone": "Asia/Seoul" },
+            "duration": "PT1H55M",
+            "fare_brand_name": "Economy Basic",
+            "segments": [
+              {
+                "id": "seg_0000AwUnitFixtureKE724B",
+                "origin": { "type": "airport", "iata_code": "KIX", "name": "Kansai International Airport", "time_zone": "Asia/Tokyo" },
+                "destination": { "type": "airport", "iata_code": "ICN", "name": "Incheon International Airport", "time_zone": "Asia/Seoul" },
+                "origin_terminal": "1",
+                "destination_terminal": "2",
+                "departing_at": "2026-11-23T11:00:00",
+                "arriving_at": "2026-11-23T12:55:00",
+                "duration": "PT1H55M",
+                "distance": "525.4",
+                "marketing_carrier": { "id": "arl_0000AwKE", "iata_code": "KE", "name": "Korean Air" },
+                "marketing_carrier_flight_number": "724",
+                "operating_carrier": { "id": "arl_0000AwKE", "iata_code": "KE", "name": "Korean Air" },
+                "operating_carrier_flight_number": "724",
+                "aircraft": { "id": "arc_0000Aw73J", "iata_code": "73J", "name": "Boeing 737-900" },
+                "passengers": [
+                  {
+                    "passenger_id": "pas_0000AwUnitFixture0001",
+                    "cabin_class": "economy",
+                    "cabin_class_marketing_name": "Economy Basic",
+                    "baggages": [{ "type": "checked", "quantity": 0 }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
