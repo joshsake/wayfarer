@@ -51,6 +51,8 @@ describe("searchFlights", () => {
     const [input, init] = fetchMock.mock.calls[0];
     expect(String(input)).toBe(OFFER_REQUESTS_URL);
     expect(init?.method).toBe("POST");
+    // Our own wait is bounded too — not only Duffel's wait on the airlines.
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
 
     const headers = init?.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer duffel_test_unit-token");
@@ -68,15 +70,35 @@ describe("searchFlights", () => {
     });
   });
 
-  it("rejects when Duffel answers with a non-2xx status", async () => {
+  it("rejects on a non-2xx status, with the response body for the server log", async () => {
     vi.stubGlobal(
       "fetch",
       makeFetchMock(() => new Response("rate limited", { status: 429 })),
     );
 
+    // The body is Duffel's own explanation — gold in the server log. It
+    // never reaches the browser: the route catches this and answers with a
+    // bare { available: false }.
     await expect(searchFlights("KIX", "ICN", "2026-11-23")).rejects.toThrow(
-      "Duffel search failed: 429",
+      /Duffel search failed: 429.*rate limited/,
     );
+  });
+
+  it("caps the logged error body at 500 characters", async () => {
+    vi.stubGlobal(
+      "fetch",
+      makeFetchMock(() => new Response("x".repeat(1000), { status: 500 })),
+    );
+
+    let message = ""; // stays empty if it (wrongly) resolves — first expect then fails
+    try {
+      await searchFlights("KIX", "ICN", "2026-11-23");
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain("Duffel search failed: 500");
+    expect(message).toContain("x".repeat(500));
+    expect(message).not.toContain("x".repeat(501));
   });
 
   it("returns the three cheapest normalized offers, cheapest first", async () => {
@@ -84,9 +106,10 @@ describe("searchFlights", () => {
 
     const offers = await searchFlights("KIX", "ICN", "2026-11-23");
 
-    // The fixture holds four offers, deliberately out of price order
-    // (412.60, 298.40, 550.00, 275.10). The 550.00 one must not survive.
-    expect(offers.map((o) => o.price)).toEqual(["275.10", "298.40", "412.60"]);
+    // The fixture holds five offers, deliberately out of price order
+    // (412.60, 298.40, 550.00, 275.10, 389.00 — the last is KE 724 again
+    // as a cheaper fare brand). 412.60 and 550.00 must not survive.
+    expect(offers.map((o) => o.price)).toEqual(["275.10", "298.40", "389.00"]);
     expect(offers.map((o) => o.stops)).toEqual([1, 1, 0]);
     expect(offers.map((o) => o.segments[0].carrier)).toEqual(["CI", "MU", "KE"]);
   });

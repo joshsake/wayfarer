@@ -18,6 +18,7 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
+import { offerKey } from "@/lib/flights";
 import type { FlightOffer, FlightQuery } from "@/lib/types";
 
 type StripState =
@@ -130,7 +131,9 @@ export default function FlightStrip({
             const last = offer.segments[offer.segments.length - 1];
             return (
               <li
-                key={`${first.carrier}${first.flightNumber}-${first.departAt}`}
+                // Itinerary + price, not the first segment: Duffel lists one
+                // offer per fare brand, so the same flight can appear twice.
+                key={offerKey(offer)}
                 data-testid="flight-offer"
                 className="flex items-baseline justify-between gap-3 text-sm"
               >

@@ -86,6 +86,9 @@ export function flightQueries(plan: TripPlan, homeAirport?: string): FlightQuery
 /** How many offers a flight strip shows. Duffel returns far more. */
 const MAX_OFFERS = 3;
 
+/** A fare as Duffel quotes it: digits, optionally a dot and more digits. */
+const PRICE = /^\d+(\.\d+)?$/;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -118,7 +121,8 @@ function toSegment(raw: unknown): FlightSegment | undefined {
 function toOffer(raw: unknown): FlightOffer | undefined {
   if (!isRecord(raw)) return undefined;
 
-  const price = asString(raw.total_amount);
+  // Trimmed, so a stray space can neither reach the UI nor dodge the check.
+  const price = asString(raw.total_amount)?.trim();
   const currency = asString(raw.total_currency);
 
   // We ask for one slice (one-way), so slices[0] is the whole journey.
@@ -129,9 +133,11 @@ function toOffer(raw: unknown): FlightOffer | undefined {
   if (!price || !currency || !duration || !rawSegments || rawSegments.length === 0) {
     return undefined;
   }
-  // A price we can't compare is a price we can't rank; it would also poison
-  // the sort below (NaN compares as neither less nor greater than anything).
-  if (!Number.isFinite(Number(price))) return undefined;
+  // A strict shape check, not Number(): Number("  ") is 0, Number("1e3") is
+  // 1000 and Number("-5.00") is -5 — all finite, none a fare. And a price we
+  // can't rank would poison the sort below (NaN compares as neither less
+  // nor greater than anything), so the offer goes.
+  if (!PRICE.test(price)) return undefined;
 
   const segments: FlightSegment[] = [];
   for (const rawSegment of rawSegments) {
@@ -173,4 +179,25 @@ export function normalizeOffers(apiJson: unknown): FlightOffer[] {
   return offers
     .sort((a, b) => Number(a.price) - Number(b.price))
     .slice(0, MAX_OFFERS);
+}
+
+/**
+ * A React `key` for an offer: every segment's carrier + flight number +
+ * departure time joined by "|", then "-" and the price.
+ *
+ * LEARNING NOTE: React uses `key` to match list items across renders, and
+ * two siblings with the same key get folded into one DOM node — an offer
+ * silently disappears. The first segment alone isn't unique: Duffel returns
+ * one offer PER FARE BRAND, so the same physical KE 724 shows up twice at
+ * different prices ("Basic" and "Standard"). Itinerary plus price is what
+ * actually makes an offer distinct, so that's the key. It lives here rather
+ * than in FlightStrip so the collision case is provable in Vitest without
+ * rendering anything.
+ */
+export function offerKey(offer: FlightOffer): string {
+  return (
+    offer.segments.map((s) => s.carrier + s.flightNumber + s.departAt).join("|") +
+    "-" +
+    offer.price
+  );
 }

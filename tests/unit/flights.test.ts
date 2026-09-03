@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Destination, TripLeg, TripPlan } from "@/lib/types";
-import { flightQueries, normalizeOffers } from "@/lib/flights";
+import { flightQueries, normalizeOffers, offerKey } from "@/lib/flights";
 import duffelFixture from "./fixtures/duffel-offer-request.json";
 
 // ---------------------------------------------------------------------------
@@ -146,16 +146,20 @@ describe("flightQueries", () => {
 // ---------------------------------------------------------------------------
 // normalizeOffers — the Duffel → FlightOffer boundary.
 //
-// The fixture is a test-mode-shaped offer request holding FOUR offers,
-// deliberately out of price order: KE 724 nonstop at 412.60, MU via PVG at
-// 298.40, OZ 111 nonstop at 550.00, CI via TPE at 275.10. So "cheapest three,
-// ascending" has exactly one right answer, and the 550.00 offer is the
-// canary: if it ever shows up, the cap or the sort is broken.
+// The fixture is a test-mode-shaped offer request holding FIVE offers,
+// deliberately out of price order: KE 724 nonstop ("Economy Standard") at
+// 412.60, MU via PVG at 298.40, OZ 111 nonstop at 550.00, CI via TPE at
+// 275.10, and KE 724 AGAIN as "Economy Basic" at 389.00 — the same physical
+// flight, cheaper fare brand. That last one is how Duffel really looks: one
+// offer per fare brand, so identical itineraries at different prices are
+// normal, not a glitch. "Cheapest three, ascending" therefore has exactly
+// one right answer (275.10, 298.40, 389.00), and the 412.60 and 550.00
+// offers are the canaries: if either shows up, the cap or the sort is broken.
 // ---------------------------------------------------------------------------
 
 type DuffelOffer = Record<string, unknown>;
 const fixtureOffers = (duffelFixture as { data: { offers: DuffelOffer[] } }).data.offers;
-const [KE_NONSTOP, MU_VIA_PVG, OZ_NONSTOP, CI_VIA_TPE] = fixtureOffers;
+const [KE_NONSTOP, MU_VIA_PVG, OZ_NONSTOP, CI_VIA_TPE, KE_NONSTOP_BASIC] = fixtureOffers;
 
 /** Wrap raw offers in the envelope Duffel uses: `{ data: { offers } }`. */
 function offerRequest(offers: unknown[]): unknown {
@@ -223,7 +227,9 @@ describe("normalizeOffers", () => {
         ],
       },
       {
-        price: "412.60",
+        // KE 724's cheaper "Economy Basic" fare brand — the Standard one at
+        // 412.60 is the same flight and falls outside the top three.
+        price: "389.00",
         currency: "USD",
         stops: 0,
         duration: "PT1H55M",
@@ -241,10 +247,22 @@ describe("normalizeOffers", () => {
     ]);
   });
 
-  it("excludes the fourth, priciest offer", () => {
+  it("excludes the two priciest offers", () => {
     const prices = normalizeOffers(duffelFixture).map((o) => o.price);
+    expect(prices).not.toContain("412.60");
     expect(prices).not.toContain("550.00");
     expect(prices).toHaveLength(3);
+  });
+
+  // LEARNING NOTE: Duffel emits one offer per fare brand, so the SAME
+  // physical flight legitimately appears twice at different prices. The
+  // normalizer must keep both (they're different purchases), which is
+  // exactly why the UI can't key its list on the itinerary alone.
+  it("keeps two fare brands of the same physical flight as separate offers", () => {
+    const offers = normalizeOffers(offerRequest([KE_NONSTOP, KE_NONSTOP_BASIC]));
+    expect(offers).toHaveLength(2);
+    expect(offers[0].segments).toEqual(offers[1].segments);
+    expect(offers.map((o) => o.price)).toEqual(["389.00", "412.60"]);
   });
 
   // LEARNING NOTE: Prices arrive as STRINGS ("412.60"), and JavaScript sorts
@@ -278,6 +296,20 @@ describe("normalizeOffers", () => {
     // The OLD provider's envelope (`data` was the offers array itself) is
     // now just another wrong shape — it must degrade, not crash.
     expect(normalizeOffers({ data: [] })).toEqual([]);
+  });
+
+  // LEARNING NOTE: Number() is far too forgiving for a price: Number("  ")
+  // is 0, Number("1e3") is 1000, Number("-5.00") is -5 — all "finite", none
+  // a fare. The guard is a strict shape check instead: digits, optionally a
+  // dot and more digits, nothing else (after trimming stray whitespace).
+  it("drops prices that aren't plain decimal strings", () => {
+    for (const bad of ["  ", "", "12,50", "1e3", "-5.00", "412.", "$412", "412.60 USD"]) {
+      expect(normalizeOffers(offerRequest([nonstopAt(bad)])), JSON.stringify(bad)).toEqual([]);
+    }
+    for (const good of ["412.60", "412", " 412.60 "]) {
+      const [offer] = normalizeOffers(offerRequest([nonstopAt(good)]));
+      expect(offer?.price, JSON.stringify(good)).toBe(good.trim());
+    }
   });
 
   it("skips malformed offers but keeps the valid ones", () => {
@@ -315,5 +347,37 @@ describe("normalizeOffers", () => {
     expect(Object.keys(cheapest).sort()).toEqual(
       ["currency", "duration", "price", "segments", "stops"],
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// offerKey — what FlightStrip hands to React as each <li>'s `key`.
+//
+// LEARNING NOTE: React uses `key` to match list items across renders; two
+// siblings with the same key make it reuse one DOM node for both, and one
+// offer silently vanishes. Keying on the first segment alone collides the
+// moment Duffel returns two fare brands of the same flight (see above), so
+// the key is the whole itinerary PLUS the price — the pair that actually
+// makes an offer distinct.
+// ---------------------------------------------------------------------------
+
+describe("offerKey", () => {
+  it("is every segment's carrier, number and departure joined by |, then the price", () => {
+    const [cheapest, , keBasic] = normalizeOffers(duffelFixture);
+    expect(offerKey(cheapest)).toBe(
+      "CI1572026-11-23T10:15:00|CI1602026-11-23T14:10:00-275.10",
+    );
+    expect(offerKey(keBasic)).toBe("KE7242026-11-23T11:00:00-389.00");
+  });
+
+  it("tells two fare brands of the same physical flight apart", () => {
+    const [basic, standard] = normalizeOffers(offerRequest([KE_NONSTOP, KE_NONSTOP_BASIC]));
+    expect(basic.segments).toEqual(standard.segments); // same flight...
+    expect(offerKey(basic)).not.toBe(offerKey(standard)); // ...distinct keys
+  });
+
+  it("is stable for the same offer", () => {
+    const [offer] = normalizeOffers(duffelFixture);
+    expect(offerKey(offer)).toBe(offerKey(structuredClone(offer)));
   });
 });

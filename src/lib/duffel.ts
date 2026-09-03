@@ -1,8 +1,18 @@
+import "server-only";
 import { normalizeOffers } from "./flights";
 import type { FlightOffer } from "./types";
 
 // ---------------------------------------------------------------------------
 // The Duffel client — server-only.
+//
+// LEARNING NOTE: That first line, `import "server-only"`, turns "the token
+// never reaches the browser" from a promise into a rule the build enforces.
+// Next.js intercepts this import: if a client component — or anything a
+// client component imports — ever pulls this module in, `next build` fails
+// with a clear error instead of shipping a bundle that quietly reads an
+// empty DUFFEL_ACCESS_TOKEN. The npm package is just a marker (Next never
+// uses its contents); it's installed so the import resolves for lint and
+// so Vitest can alias it to a stub (see vitest.config.mts).
 //
 // LEARNING NOTE: Contrast this file with supabase.ts, which is its opposite
 // on both counts.
@@ -66,6 +76,10 @@ export async function searchFlights(
 
   const res = await fetch(OFFER_REQUESTS_URL, {
     method: "POST",
+    // Bounds OUR wait on Duffel; supplier_timeout only bounds Duffel's wait
+    // on the airlines. Without this a stalled connection would hang the
+    // route handler indefinitely.
+    signal: AbortSignal.timeout(15_000),
     headers: {
       Authorization: `Bearer ${token}`,
       "Duffel-Version": "v2",
@@ -81,6 +95,12 @@ export async function searchFlights(
       },
     }),
   });
-  if (!res.ok) throw new Error(`Duffel search failed: ${res.status}`);
+  if (!res.ok) {
+    // Duffel's own explanation of the failure — for the server log only;
+    // the route catches this and never echoes it. Capped so a stray HTML
+    // error page can't flood the log.
+    const body = (await res.text().catch(() => "")).slice(0, 500);
+    throw new Error(`Duffel search failed: ${res.status}${body ? ` — ${body}` : ""}`);
+  }
   return normalizeOffers(await res.json());
 }

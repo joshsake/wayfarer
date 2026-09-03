@@ -12,7 +12,7 @@ feel of the trip. Show real flight options for every transition in the plan.
 
 ## Decisions (with the user)
 
-1. **Provider: Amadeus Self-Service API.** Google Flights has no public API
+1. **Provider: Amadeus Self-Service API.** *(Superseded — see Provider pivot below.)* Google Flights has no public API
    (QPX Express shut down in 2018); scraper services are paid. Amadeus has a
    free self-service test tier. The user signs up and holds the credentials.
 2. **Scope: all four flights** — home → first leg, each inter-leg transition,
@@ -40,7 +40,7 @@ the dashboard SQL editor like the previous migrations. `Destination` and
 
 ## Components
 
-- **`src/lib/amadeus.ts`** (server-only): client-credentials token fetch,
+- **`src/lib/amadeus.ts`** (server-only) *(Superseded — see Provider pivot below.)*: client-credentials token fetch,
   cached until expiry; `searchFlights(origin, dest, date)` → normalized
   offers. Reads `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET` — deliberately
   NOT `NEXT_PUBLIC_`; these must never reach the browser. Flights are an
