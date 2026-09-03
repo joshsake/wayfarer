@@ -72,7 +72,8 @@ Amadeus sandbox played), and — a simplification — a static bearer token
 instead of OAuth client-credentials, so the token cache goes away.
 
 Contract (verified against duffel.com/docs): `POST
-https://api.duffel.com/air/offer_requests?return_offers=true` with headers
+https://api.duffel.com/air/offer_requests?return_offers=true&supplier_timeout=10000`
+(the timeout caps per-airline search time at 10 s; default 20 s) with headers
 `Authorization: Bearer <token>`, `Duffel-Version: v2`, JSON body
 `{ data: { slices: [{ origin, destination, departure_date }], passengers:
 [{ type: "adult" }], cabin_class: "economy", max_connections: 1 } }`.
@@ -94,7 +95,7 @@ this is the mapping-boundary principle paying for itself.
 - **Vitest:** `flightQueries` (with/without home airport; dates = leg start
   dates), the offer normalizer against a checked-in test-mode-shaped fixture,
   request-shape and failure tests for the provider client.
-- **Playwright:** stub `/api/flights` with `page.route()` (CI has no Amadeus
-  key); assert strips render offers and degrade quietly with no key.
-- **Manual:** live smoke on the motivating trip once the user's key is in
-  `.env.local`.
+- **Playwright:** stub `/api/flights` with `page.route()` (CI has no Duffel
+  token); assert strips render offers and degrade quietly with no token.
+- **Manual:** live smoke on the motivating trip once the user's Duffel test
+  token is in `.env.local`.
