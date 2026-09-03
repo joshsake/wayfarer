@@ -62,11 +62,38 @@ The Amadeus test environment has limited inventory and indicative prices.
 KIX/ICN/SIN are covered routes. UI labels prices "test data" until a
 production key exists.
 
+## Provider pivot: Amadeus → Duffel (September 2026)
+
+Amadeus decommissioned its self-service developer portal on 2026-07-17;
+developers.amadeus.com now serves enterprise sales only, so the free sandbox
+this design assumed can no longer be obtained. **Duffel** replaces it:
+self-service signup, a free test mode with synthetic offers (the same role the
+Amadeus sandbox played), and — a simplification — a static bearer token
+instead of OAuth client-credentials, so the token cache goes away.
+
+Contract (verified against duffel.com/docs): `POST
+https://api.duffel.com/air/offer_requests?return_offers=true` with headers
+`Authorization: Bearer <token>`, `Duffel-Version: v2`, JSON body
+`{ data: { slices: [{ origin, destination, departure_date }], passengers:
+[{ type: "adult" }], cabin_class: "economy", max_connections: 1 } }`.
+Response `data.offers[]` carries `total_amount` (string), `total_currency`,
+`slices[0].duration`, and `slices[0].segments[]` with
+`origin.iata_code`, `destination.iata_code`, `departing_at`/`arriving_at`
+(ISO 8601, airport-local, no offset — the rendering rule already in
+`FlightStrip` applies unchanged), `marketing_carrier.iata_code`,
+`marketing_carrier_flight_number`. Duffel returns many offers; we keep the
+three cheapest.
+
+Blast radius, by design: the provider module, the normalizer's field mapping,
+the fixture, and the env var (`DUFFEL_ACCESS_TOKEN`). Route handler contract,
+`FlightStrip`, the form, `flightQueries`, and the E2E specs are untouched —
+this is the mapping-boundary principle paying for itself.
+
 ## Testing
 
 - **Vitest:** `flightQueries` (with/without home airport; dates = leg start
-  dates), the offer normalizer against a checked-in sandbox-response fixture,
-  token caching with injected clock.
+  dates), the offer normalizer against a checked-in test-mode-shaped fixture,
+  request-shape and failure tests for the provider client.
 - **Playwright:** stub `/api/flights` with `page.route()` (CI has no Amadeus
   key); assert strips render offers and degrade quietly with no key.
 - **Manual:** live smoke on the motivating trip once the user's key is in
