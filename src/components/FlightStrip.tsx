@@ -32,7 +32,7 @@ function stopsLabel(stops: number): string {
 }
 
 /**
- * "2026-11-23T11:00:00" → "11:00". The slice is deliberate: Amadeus times are
+ * "2026-11-23T11:00:00" → "11:00". The slice is deliberate: Duffel's times are
  * already local to their airport, with no zone marker. Passing them through
  * `new Date()` / `toLocaleTimeString()` would REINTERPRET them in the
  * viewer's timezone — an 11:00 Osaka departure would render as some other
@@ -92,8 +92,8 @@ export default function FlightStrip({
         <p className="text-sm font-medium uppercase tracking-wide text-stone-400">
           {label} · {query.origin} → {query.dest}
         </p>
-        {/* Sandbox reality check, aligned over the price column: the Amadeus
-            test API returns cached/synthetic fares, not bookable prices. */}
+        {/* Test-mode reality check, aligned over the price column: a Duffel
+            test token returns synthetic offers, not bookable prices. */}
         {state.status === "loaded" && state.offers.length > 0 && (
           <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">
             test data

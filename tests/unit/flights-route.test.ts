@@ -7,7 +7,7 @@ import { GET } from "@/app/api/flights/route";
 // LEARNING NOTE: Because a Next.js route handler is just an exported function
 // taking a Web-standard Request, we can call it directly in Vitest — no
 // server, no supertest. The paths worth pinning here are the ones with no
-// Amadeus involved at all: bad params (400) and a missing key (200 with
+// Duffel involved at all: bad params (400) and a missing token (200 with
 // { available: false } — flights are optional, so "not configured" is a
 // quiet shrug, never an error the UI has to handle).
 // ---------------------------------------------------------------------------
@@ -33,9 +33,8 @@ describe("GET /api/flights", () => {
     }
   });
 
-  it("returns 200 { available: false } when Amadeus isn't configured", async () => {
-    vi.stubEnv("AMADEUS_CLIENT_ID", "");
-    vi.stubEnv("AMADEUS_CLIENT_SECRET", "");
+  it("returns 200 { available: false } when Duffel isn't configured", async () => {
+    vi.stubEnv("DUFFEL_ACCESS_TOKEN", "");
 
     const res = await GET(flightsRequest("origin=KIX&dest=ICN&date=2026-11-23"));
     expect(res.status).toBe(200);

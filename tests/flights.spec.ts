@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 // ---------------------------------------------------------------------------
-// Flight strips, end to end — with /api/flights STUBBED. CI has no Amadeus
-// key (and live fares change by the minute), so page.route() intercepts the
+// Flight strips, end to end — with /api/flights STUBBED. CI has no Duffel
+// token (and live fares change by the minute), so page.route() intercepts the
 // browser's own fetch before it leaves Playwright and answers with canned
 // JSON. The route must be registered BEFORE navigation: it patches the page's
 // network layer, and a fetch that races ahead of it would hit the real

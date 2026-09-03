@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Destination, TripLeg, TripPlan } from "@/lib/types";
 import { flightQueries, normalizeOffers } from "@/lib/flights";
-import amadeusFixture from "./fixtures/amadeus-flight-offers.json";
+import duffelFixture from "./fixtures/duffel-offer-request.json";
 
 // ---------------------------------------------------------------------------
 // Fixtures. Same makeDest pattern as trip.test.ts, but flights only care
@@ -118,10 +118,10 @@ describe("flightQueries", () => {
   });
 
   // LEARNING NOTE: If home IS the first leg's airport (you live in Kyoto and
-  // the trip starts there), a naive derivation asks Amadeus for KIX→KIX.
-  // The API rejects that with a 400 — and on a rate-limited sandbox key,
-  // even a rejected call is a call wasted. Degenerate queries must never
-  // leave this function.
+  // the trip starts there), a naive derivation asks the provider for
+  // KIX→KIX. No airline sells that, so at best it comes back empty and at
+  // worst it's a 4xx — either way a request spent for nothing. Degenerate
+  // queries must never leave this function.
   it("skips the outbound flight when home equals the first leg's airport", () => {
     expect(flightQueries(THREE_LEG_PLAN, "KIX")).toEqual([
       { origin: "KIX", dest: "ICN", date: "2026-11-23" },
@@ -143,22 +143,58 @@ describe("flightQueries", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// normalizeOffers — the Duffel → FlightOffer boundary.
+//
+// The fixture is a test-mode-shaped offer request holding FOUR offers,
+// deliberately out of price order: KE 724 nonstop at 412.60, MU via PVG at
+// 298.40, OZ 111 nonstop at 550.00, CI via TPE at 275.10. So "cheapest three,
+// ascending" has exactly one right answer, and the 550.00 offer is the
+// canary: if it ever shows up, the cap or the sort is broken.
+// ---------------------------------------------------------------------------
+
+type DuffelOffer = Record<string, unknown>;
+const fixtureOffers = (duffelFixture as { data: { offers: DuffelOffer[] } }).data.offers;
+const [KE_NONSTOP, MU_VIA_PVG, OZ_NONSTOP, CI_VIA_TPE] = fixtureOffers;
+
+/** Wrap raw offers in the envelope Duffel uses: `{ data: { offers } }`. */
+function offerRequest(offers: unknown[]): unknown {
+  return { data: { offers } };
+}
+
+/** The KE nonstop with a different price — for sort-only tests. */
+function nonstopAt(price: string, carrier = "KE"): DuffelOffer {
+  const offer = structuredClone(KE_NONSTOP);
+  offer.total_amount = price;
+  const slice = (offer.slices as { segments: Record<string, unknown>[] }[])[0];
+  slice.segments[0].marketing_carrier = { iata_code: carrier, name: carrier };
+  return offer;
+}
+
 describe("normalizeOffers", () => {
-  it("normalizes the sandbox fixture exactly", () => {
-    expect(normalizeOffers(amadeusFixture)).toEqual([
+  it("keeps the three cheapest offers of the fixture, cheapest first, exactly", () => {
+    expect(normalizeOffers(duffelFixture)).toEqual([
       {
-        price: "412.60",
+        price: "275.10",
         currency: "USD",
-        stops: 0,
-        duration: "PT1H55M",
+        stops: 1,
+        duration: "PT8H25M",
         segments: [
           {
             from: "KIX",
+            to: "TPE",
+            departAt: "2026-11-23T10:15:00",
+            arriveAt: "2026-11-23T12:20:00",
+            carrier: "CI",
+            flightNumber: "157",
+          },
+          {
+            from: "TPE",
             to: "ICN",
-            departAt: "2026-11-23T11:00:00",
-            arriveAt: "2026-11-23T12:55:00",
-            carrier: "KE",
-            flightNumber: "724",
+            departAt: "2026-11-23T14:10:00",
+            arriveAt: "2026-11-23T17:40:00",
+            carrier: "CI",
+            flightNumber: "160",
           },
         ],
       },
@@ -186,7 +222,47 @@ describe("normalizeOffers", () => {
           },
         ],
       },
+      {
+        price: "412.60",
+        currency: "USD",
+        stops: 0,
+        duration: "PT1H55M",
+        segments: [
+          {
+            from: "KIX",
+            to: "ICN",
+            departAt: "2026-11-23T11:00:00",
+            arriveAt: "2026-11-23T12:55:00",
+            carrier: "KE",
+            flightNumber: "724",
+          },
+        ],
+      },
     ]);
+  });
+
+  it("excludes the fourth, priciest offer", () => {
+    const prices = normalizeOffers(duffelFixture).map((o) => o.price);
+    expect(prices).not.toContain("550.00");
+    expect(prices).toHaveLength(3);
+  });
+
+  // LEARNING NOTE: Prices arrive as STRINGS ("412.60"), and JavaScript sorts
+  // strings character by character — so "1000.00" < "95.00" because "1" <
+  // "9". The normalizer must compare Number(price), and this case would
+  // catch a lazy `.sort()` with no comparator.
+  it("sorts numerically, not lexicographically", () => {
+    const offers = normalizeOffers(
+      offerRequest([nonstopAt("1000.00"), nonstopAt("95.00"), nonstopAt("412.60")]),
+    );
+    expect(offers.map((o) => o.price)).toEqual(["95.00", "412.60", "1000.00"]);
+  });
+
+  it("keeps input order between equal prices (stable sort)", () => {
+    const offers = normalizeOffers(
+      offerRequest([nonstopAt("300.00", "ZZ"), nonstopAt("300.00", "AA"), nonstopAt("300.00", "MM")]),
+    );
+    expect(offers.map((o) => o.segments[0].carrier)).toEqual(["ZZ", "AA", "MM"]);
   });
 
   it("returns [] for garbage input", () => {
@@ -195,36 +271,49 @@ describe("normalizeOffers", () => {
     expect(normalizeOffers("not json we expected")).toEqual([]);
     expect(normalizeOffers(42)).toEqual([]);
     expect(normalizeOffers({})).toEqual([]);
-    expect(normalizeOffers({ data: "not an array" })).toEqual([]);
+    expect(normalizeOffers({ data: "not an object" })).toEqual([]);
+    expect(normalizeOffers({ data: {} })).toEqual([]);
+    expect(normalizeOffers({ data: { offers: "not an array" } })).toEqual([]);
+    expect(normalizeOffers({ data: { offers: [] } })).toEqual([]);
+    // The OLD provider's envelope (`data` was the offers array itself) is
+    // now just another wrong shape — it must degrade, not crash.
     expect(normalizeOffers({ data: [] })).toEqual([]);
   });
 
   it("skips malformed offers but keeps the valid ones", () => {
-    const good = (amadeusFixture as { data: unknown[] }).data[0];
-    const mangled = {
-      data: [
-        {}, //                                      no price, no itineraries
-        { price: { grandTotal: "99.00" } }, //      no itineraries
-        { itineraries: [{ segments: [] }] }, //     no price, no segments
-        good, //                                    the real thing
-      ],
-    };
+    const mangled = offerRequest([
+      {}, //                                        no price, no slices
+      { total_amount: "99.00", total_currency: "USD" }, //  no slices
+      { slices: [{ duration: "PT1H", segments: [] }] }, //  no price, no segments
+      { ...KE_NONSTOP, total_amount: "not a number" }, //   unsortable price
+      KE_NONSTOP, //                                the real thing
+    ]);
     const offers = normalizeOffers(mangled);
     expect(offers).toHaveLength(1);
     expect(offers[0].price).toBe("412.60");
   });
 
   it("drops the whole offer when a mid-journey segment is broken", () => {
-    // A 1-stop offer whose SECOND segment is missing its departure: half a
+    // A 1-stop offer whose SECOND segment is missing its origin: half a
     // journey is nonsense, so the entire offer must go — not just the leg.
-    const fixture = amadeusFixture as { data: unknown[] };
-    const oneStop = structuredClone(fixture.data[1]) as {
-      itineraries: { segments: Record<string, unknown>[] }[];
+    const oneStop = structuredClone(MU_VIA_PVG) as {
+      slices: { segments: Record<string, unknown>[] }[];
     };
-    delete oneStop.itineraries[0].segments[1].departure;
+    delete oneStop.slices[0].segments[1].origin;
 
-    const offers = normalizeOffers({ data: [fixture.data[0], oneStop] });
+    const offers = normalizeOffers(offerRequest([KE_NONSTOP, oneStop]));
     expect(offers).toHaveLength(1);
     expect(offers[0].stops).toBe(0); // only the untouched nonstop survives
+  });
+
+  it("ignores every offer field the UI doesn't need", () => {
+    // Sanity check on the fixture itself: the extra Duffel fields (ids,
+    // conditions, owner, expires_at...) are present, and none leak through.
+    expect(OZ_NONSTOP).toHaveProperty("conditions");
+    expect(CI_VIA_TPE).toHaveProperty("expires_at");
+    const [cheapest] = normalizeOffers(duffelFixture);
+    expect(Object.keys(cheapest).sort()).toEqual(
+      ["currency", "duration", "price", "segments", "stops"],
+    );
   });
 });
